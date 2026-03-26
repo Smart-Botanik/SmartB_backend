@@ -1,0 +1,19 @@
+services:
+  postgres_nest:
+    image: postgres:16-alpine
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_NEST_DB:-growing_nest}
+      POSTGRES_USER: ${POSTGRES_NEST_USER:-growing_nest}
+      POSTGRES_PASSWORD: ${POSTGRES_NEST_PASSWORD:-growing_nest}
+    volumes:
+      - postgres_nest_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres_nest_data:
