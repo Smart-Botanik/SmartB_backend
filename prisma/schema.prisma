@@ -10,7 +10,40 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
+  username     String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  plants Plant[]
+  diaries Diary[]
+}
+
+model Plant {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  diaries Diary[]
+
+  @@index([userId])
+}
+
+model Diary {
+  id        String   @id @default(cuid())
+  userId    String
+  plantId   String
+  title     String?
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plant Plant @relation(fields: [plantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([plantId])
 }

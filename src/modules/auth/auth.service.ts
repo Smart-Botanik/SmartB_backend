@@ -1,9 +1,9 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import { UsersService } from '../users/users.service';
-import { JwtPayload } from './types/jwt-payload.type';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { JwtService } from "@nestjs/jwt";
+import * as bcrypt from "bcrypt";
+import { UsersService } from "../users/users.service";
+import { JwtPayload } from "./types/jwt-payload.type";
 
 @Injectable()
 export class AuthService {
@@ -18,51 +18,70 @@ export class AuthService {
     return bcrypt.hash(password, saltRounds);
   }
 
-  private async verifyPassword(password: string, hash: string): Promise<boolean> {
+  private async verifyPassword(
+    password: string,
+    hash: string,
+  ): Promise<boolean> {
     return bcrypt.compare(password, hash);
   }
 
-  async register(email: string, password: string) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const passwordHash = await this.hashPassword(password);
+  async register(params: {
+    email: string;
+    username: string;
+    password: string;
+  }) {
+    const normalizedEmail = params.email.trim().toLowerCase();
+    const normalizedUsername = params.username.trim();
+    const passwordHash = await this.hashPassword(params.password);
 
     const user = await this.usersService.createUser({
       email: normalizedEmail,
+      username: normalizedUsername,
       passwordHash,
     });
 
-    const tokens = await this.issueTokens({ userId: user.id, email: user.email });
+    const tokens = await this.issueTokens({
+      userId: user.id,
+      email: user.email,
+    });
 
     return {
+      jwt: tokens.accessToken,
       user: {
         id: user.id,
+        createdAt: user.createdAt.toISOString(),
         email: user.email,
+        username: user.username,
       },
-      ...tokens,
     };
   }
 
-  async login(email: string, password: string) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = await this.usersService.findByEmail(normalizedEmail);
+  async login(params: { identifier: string; password: string }) {
+    const normalizedIdentifier = params.identifier.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(normalizedIdentifier);
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
-    const ok = await this.verifyPassword(password, user.passwordHash);
+    const ok = await this.verifyPassword(params.password, user.passwordHash);
     if (!ok) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
-    const tokens = await this.issueTokens({ userId: user.id, email: user.email });
+    const tokens = await this.issueTokens({
+      userId: user.id,
+      email: user.email,
+    });
 
     return {
+      jwt: tokens.accessToken,
       user: {
         id: user.id,
+        createdAt: user.createdAt.toISOString(),
         email: user.email,
+        username: user.username,
       },
-      ...tokens,
     };
   }
 
@@ -73,8 +92,9 @@ export class AuthService {
     };
 
     const accessToken = await this.jwtService.signAsync(payload, {
-      secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') ?? '15m',
+      secret: this.configService.get<string>("JWT_ACCESS_SECRET"),
+      expiresIn:
+        this.configService.get<string>("JWT_ACCESS_EXPIRES_IN") ?? "15m",
     });
 
     return {

@@ -1,5 +1,5 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { ConflictException, Injectable } from "@nestjs/common";
+import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 @Injectable()
 export class UsersService {
@@ -13,15 +13,29 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
-  async createUser(params: { email: string; passwordHash: string }) {
+  async findByUsername(username: string) {
+    return this.prisma.user.findUnique({ where: { username } });
+  }
+
+  async createUser(params: {
+    email: string;
+    username: string;
+    passwordHash: string;
+  }) {
     const existing = await this.findByEmail(params.email);
     if (existing) {
-      throw new ConflictException('Email already exists');
+      throw new ConflictException("Email already exists");
+    }
+
+    const existingUsername = await this.findByUsername(params.username);
+    if (existingUsername) {
+      throw new ConflictException("Username already exists");
     }
 
     return this.prisma.user.create({
       data: {
         email: params.email,
+        username: params.username,
         passwordHash: params.passwordHash,
       },
     });
