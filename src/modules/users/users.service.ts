@@ -1,5 +1,6 @@
 import { ConflictException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { Role } from "@growing/contracts";
 
 @Injectable()
 export class UsersService {
@@ -21,6 +22,7 @@ export class UsersService {
     email: string;
     username: string;
     passwordHash: string;
+    role?: Role;
   }) {
     const existing = await this.findByEmail(params.email);
     if (existing) {
@@ -37,7 +39,8 @@ export class UsersService {
         email: params.email,
         username: params.username,
         passwordHash: params.passwordHash,
-      },
+        role: params.role ?? Role.USER,
+      } as any,
     });
   }
 }

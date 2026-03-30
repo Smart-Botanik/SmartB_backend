@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
+import { Role } from "@growing/contracts";
 import { UsersService } from "../users/users.service";
 import { JwtPayload } from "./types/jwt-payload.type";
 
@@ -43,6 +44,7 @@ export class AuthService {
     const tokens = await this.issueTokens({
       userId: user.id,
       email: user.email,
+      role: (user as any).role,
     });
 
     return {
@@ -72,6 +74,7 @@ export class AuthService {
     const tokens = await this.issueTokens({
       userId: user.id,
       email: user.email,
+      role: (user as any).role,
     });
 
     return {
@@ -85,10 +88,11 @@ export class AuthService {
     };
   }
 
-  async issueTokens(params: { userId: string; email: string }) {
+  async issueTokens(params: { userId: string; email: string; role: Role }) {
     const payload: JwtPayload = {
       sub: params.userId,
       email: params.email,
+      role: params.role,
     };
 
     const accessToken = await this.jwtService.signAsync(payload, {

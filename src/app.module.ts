@@ -5,8 +5,11 @@ import { GraphQLModule } from "@nestjs/graphql";
 import { GraphQLDateTime } from "graphql-scalars";
 import type { Request } from "express";
 import { AuthModule } from "./modules/auth/auth.module";
+import { BrandsModule } from "./modules/brands/brands.module";
 import { DiaryModule } from "./modules/diary/diary.module";
+import { MediaModule } from "./modules/media/media.module";
 import { PlantModule } from "./modules/plant/plant.module";
+import { ProductsModule } from "./modules/products/products.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./infrastructure/prisma/prisma.module";
 
@@ -35,6 +38,9 @@ import { PrismaModule } from "./infrastructure/prisma/prisma.module";
     AuthModule,
     PlantModule,
     DiaryModule,
+    MediaModule,
+    BrandsModule,
+    ProductsModule,
   ],
 })
 export class AppModule {}

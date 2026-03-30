@@ -7,11 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum BrandCategory {
+  BREADER
+  TENT
+  LAMP
+  COMMON
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   username     String   @unique
   passwordHash String
+  role         Role     @default(USER)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -22,28 +36,83 @@ model User {
 model Plant {
   id        String   @id @default(cuid())
   userId    String
+  diaryId   String?
   name      String
+  summarize String?  @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  diaries Diary[]
+  diary   Diary?  @relation(fields: [diaryId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([diaryId])
 }
 
 model Diary {
   id        String   @id @default(cuid())
   userId    String
-  plantId   String
   title     String?
   body      String
+  summarize String?  @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plant Plant @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  plants Plant[]
 
   @@index([userId])
-  @@index([plantId])
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  provider  String
+  bucket    String
+  key       String
+  url       String
+  mime      String?
+  size      Int?
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+
+  brandAvatarFor   Brand?   @relation("BrandAvatar")
+  productAvatarFor Product? @relation("ProductAvatar")
+
+  @@index([provider])
+  @@index([bucket])
+}
+
+model Brand {
+  id            String   @id @default(cuid())
+  name          String
+  category      BrandCategory
+  avatarMediaId String?  @unique
+  summarize     String?  @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  avatar   Media?    @relation("BrandAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  products Product[]
+
+  @@index([category])
+  @@index([name])
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  name          String
+  category      String
+  brandId       String
+  avatarMediaId String?  @unique
+  summarize     String?  @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  brand  Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  avatar Media? @relation("ProductAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+
+  @@index([brandId])
+  @@index([category])
+  @@index([name])
 }

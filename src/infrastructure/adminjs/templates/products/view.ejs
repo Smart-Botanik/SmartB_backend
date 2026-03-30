@@ -1,0 +1,191 @@
+<% 
+layout('layout/admin', {
+    title: product.name,
+    activeItem: 'products',
+    currentUser: currentUser,
+    additionalHead: `
+        <style>
+            .product-header {
+                display: flex;
+                gap: 24px;
+                margin-bottom: 32px;
+                align-items: flex-start;
+            }
+            .product-avatar {
+                width: 120px;
+                height: 120px;
+                object-fit: cover;
+                border-radius: 12px;
+                border: 1px solid #e1e8ed;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .product-avatar-placeholder {
+                width: 120px;
+                height: 120px;
+                background: #e1e8ed;
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 48px;
+                color: #6c757d;
+            }
+            .product-info h1 {
+                font-size: 32px;
+                font-weight: 700;
+                color: #2c3e50;
+                margin-bottom: 8px;
+            }
+            .product-meta {
+                color: #6c757d;
+                margin-bottom: 16px;
+                line-height: 1.6;
+            }
+            .product-description {
+                line-height: 1.6;
+                color: #495057;
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 8px;
+                border-left: 4px solid #007bff;
+            }
+            .info-grid {
+                display: grid;
+                grid-template-columns: 200px 1fr;
+                gap: 16px;
+                margin-bottom: 32px;
+            }
+            .info-label {
+                font-weight: 600;
+                color: #2c3e50;
+            }
+            .info-value {
+                color: #495057;
+            }
+            .brand-link {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 16px;
+                background: #e3f2fd;
+                color: #1976d2;
+                text-decoration: none;
+                border-radius: 6px;
+                font-weight: 500;
+                transition: background 0.2s ease;
+            }
+            .brand-link:hover {
+                background: #bbdefb;
+            }
+            .product-actions {
+                display: flex;
+                gap: 12px;
+                margin-top: 24px;
+            }
+            .danger-zone {
+                margin-top: 32px;
+                padding-top: 32px;
+                border-top: 1px solid #e1e8ed;
+            }
+        </style>
+    `,
+    additionalScripts: `
+        <script>
+            function deleteProduct(id) {
+                if (confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
+                    fetch('/admin/products/' + id, { method: 'DELETE' })
+                        .then(response => {
+                            if (response.ok) {
+                                window.location.href = '/admin/products';
+                            } else {
+                                alert('Error deleting product');
+                            }
+                        });
+                }
+            }
+        </script>
+    `
+}) 
+%>
+
+<div class="card">
+    <div class="product-header">
+        <% if (product.avatar) { %>
+            <img src="/uploads/<%= product.avatar.path %>" class="product-avatar" alt="<%= product.name %>">
+        <% } else { %>
+            <div class="product-avatar-placeholder">📦</div>
+        <% } %>
+        
+        <div class="product-info" style="flex: 1;">
+            <h1><%= product.name %></h1>
+            <div class="product-meta">
+                <% if (product.category) { %>
+                    <strong>Category:</strong> 
+                    <span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">
+                        <%= product.category %>
+                    </span>
+                    <br>
+                <% } %>
+                <strong>Created:</strong> <%= new Date(product.createdAt).toLocaleDateString() %><br>
+                <strong>Updated:</strong> <%= new Date(product.updatedAt).toLocaleDateString() %>
+            </div>
+            
+            <% if (hasPermission(currentUser, "Product", "update")) { %>
+                <div class="product-actions">
+                    <a href="/admin/products/<%= product.id %>/edit" class="btn btn-primary">✏️ Edit Product</a>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <div class="info-grid">
+        <div class="info-label">Product ID:</div>
+        <div class="info-value"><%= product.id %></div>
+        
+        <div class="info-label">Brand:</div>
+        <div class="info-value">
+            <% if (product.brand) { %>
+                <a href="/admin/brands/<%= product.brand.id %>" class="brand-link">
+                    <% if (product.brand.avatar) { %>
+                        <img src="/uploads/<%= product.brand.avatar.path %>" alt="<%= product.brand.name %>" style="width: 20px; height: 20px; border-radius: 4px;">
+                    <% } %>
+                    <%= product.brand.name %>
+                </a>
+            <% } else { %>
+                <span style="color: #6c757d;">Unknown Brand</span>
+            <% } %>
+        </div>
+        
+        <div class="info-label">Category:</div>
+        <div class="info-value"><%= product.category || 'Not categorized' %></div>
+        
+        <div class="info-label">Created:</div>
+        <div class="info-value"><%= new Date(product.createdAt).toLocaleDateString() %></div>
+        
+        <div class="info-label">Last Updated:</div>
+        <div class="info-value"><%= new Date(product.updatedAt).toLocaleDateString() %></div>
+    </div>
+
+    <% if (product.summarize) { %>
+        <div class="product-description">
+            <h3 style="margin-bottom: 12px; color: #2c3e50;">Description</h3>
+            <%= product.summarize %>
+        </div>
+    <% } else { %>
+        <div class="product-description">
+            <p style="color: #6c757d; font-style: italic;">No description provided for this product.</p>
+        </div>
+    <% } %>
+
+    <div style="margin-top: 32px;">
+        <a href="/admin/products" class="btn btn-secondary">← Back to Products</a>
+    </div>
+
+    <% if (hasPermission(currentUser, "Product", "delete")) { %>
+        <div class="danger-zone">
+            <h3 style="margin-bottom: 16px; color: #dc3545;">Danger Zone</h3>
+            <p style="color: #6c757d; margin-bottom: 16px;">Once you delete a product, there is no going back. Please be certain.</p>
+            <button onclick="deleteProduct('<%= product.id %>')" class="btn btn-danger">🗑️ Delete Product</button>
+        </div>
+    <% } %>
+</div>

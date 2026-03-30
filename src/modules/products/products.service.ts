@@ -1,0 +1,83 @@
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+
+@Injectable()
+export class ProductsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async list(params: {
+    limit?: number;
+    offset?: number;
+    query?: string | null;
+    category?: string | null;
+    brandId?: string | null;
+  }) {
+    const where = {
+      ...(params.query ? { name: { contains: params.query, mode: "insensitive" as const } } : {}),
+      ...(params.category ? { category: params.category } : {}),
+      ...(params.brandId ? { brandId: params.brandId } : {}),
+    };
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        orderBy: { name: "asc" },
+        take: params.limit ?? undefined,
+        skip: params.offset ?? undefined,
+        include: { avatar: true, brand: { include: { avatar: true } } },
+      }),
+    ]);
+
+    return { items, total };
+  }
+
+  async getById(id: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: { avatar: true, brand: { include: { avatar: true } } },
+    });
+    if (!product) {
+      throw new NotFoundException("Product not found");
+    }
+    return product;
+  }
+
+  async create(params: { name: string; category: string; brandId: string }) {
+    return this.prisma.product.create({
+      data: {
+        name: params.name,
+        category: params.category,
+        brandId: params.brandId,
+      },
+      include: { avatar: true, brand: { include: { avatar: true } } },
+    });
+  }
+
+  async update(params: {
+    id: string;
+    name?: string | null;
+    category?: string | null;
+    brandId?: string | null;
+    avatarMediaId?: string | null;
+  }) {
+    await this.getById(params.id);
+
+    return this.prisma.product.update({
+      where: { id: params.id },
+      data: {
+        name: params.name ?? undefined,
+        category: params.category ?? undefined,
+        brandId: params.brandId ?? undefined,
+        avatarMediaId: params.avatarMediaId === null ? null : params.avatarMediaId ?? undefined,
+      },
+      include: { avatar: true, brand: { include: { avatar: true } } },
+    });
+  }
+
+  async delete(id: string) {
+    await this.getById(id);
+    await this.prisma.product.delete({ where: { id } });
+    return true;
+  }
+}

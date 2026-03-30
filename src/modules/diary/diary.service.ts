@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 @Injectable()
@@ -8,7 +12,6 @@ export class DiaryService {
   async list(params: { userId: string; limit?: number; offset?: number }) {
     return this.prisma.diary.findMany({
       where: { userId: params.userId },
-      include: { plant: true },
       orderBy: { createdAt: "desc" },
       take: params.limit ?? undefined,
       skip: params.offset ?? undefined,
@@ -18,7 +21,6 @@ export class DiaryService {
   async getById(params: { userId: string; id: string }) {
     const diary = await this.prisma.diary.findUnique({
       where: { id: params.id },
-      include: { plant: true },
     });
 
     if (!diary) {
@@ -31,32 +33,30 @@ export class DiaryService {
     return diary;
   }
 
-  private async assertPlantOwnership(params: { userId: string; plantId: string }) {
-    const plant = await this.prisma.plant.findUnique({ where: { id: params.plantId } });
-    if (!plant) {
-      throw new NotFoundException("Plant not found");
-    }
-    if (plant.userId !== params.userId) {
-      throw new ForbiddenException();
-    }
+  async listPlants(params: { userId: string; diaryId: string }) {
+    await this.getById({ userId: params.userId, id: params.diaryId });
+
+    return this.prisma.plant.findMany({
+      // NOTE: `diaryId` exists in Prisma schema, but TS types may be stale until `prisma generate` is run.
+      where: {
+        userId: params.userId,
+        diaryId: params.diaryId,
+      } as any,
+      orderBy: { createdAt: "desc" },
+    });
   }
 
   async create(params: {
     userId: string;
-    plantId: string;
     title?: string | null;
     body: string;
   }) {
-    await this.assertPlantOwnership({ userId: params.userId, plantId: params.plantId });
-
     return this.prisma.diary.create({
       data: {
         userId: params.userId,
-        plantId: params.plantId,
         title: params.title ?? null,
         body: params.body,
       },
-      include: { plant: true },
     });
   }
 
@@ -74,7 +74,6 @@ export class DiaryService {
         title: params.title ?? undefined,
         body: params.body ?? undefined,
       },
-      include: { plant: true },
     });
   }
 

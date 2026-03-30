@@ -1,0 +1,116 @@
+<% 
+const isEdit = !!product;
+const formTitle = isEdit ? "Edit Product" : "Create New Product";
+const formAction = isEdit ? `/admin/products/${product.id}/edit` : "/admin/products/new";
+layout('layout/admin', {
+    title: formTitle,
+    activeItem: 'products',
+    currentUser: currentUser,
+    additionalHead: `
+        <style>
+            .product-form {
+                max-width: 600px;
+            }
+            .form-group {
+                margin-bottom: 24px;
+            }
+            .form-label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 500;
+                color: #2c3e50;
+                font-size: 14px;
+            }
+            .form-input,
+            .form-select,
+            .form-textarea {
+                width: 100%;
+                padding: 12px 16px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                font-size: 14px;
+                transition: border-color 0.2s ease;
+                font-family: 'Inter', sans-serif;
+            }
+            .form-input:focus,
+            .form-select:focus,
+            .form-textarea:focus {
+                outline: none;
+                border-color: #007bff;
+                box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+            }
+            .form-textarea {
+                resize: vertical;
+                min-height: 100px;
+            }
+            .avatar-preview {
+                width: 80px;
+                height: 80px;
+                object-fit: cover;
+                border-radius: 8px;
+                border: 1px solid #e1e8ed;
+                margin-top: 12px;
+            }
+            .form-actions {
+                display: flex;
+                gap: 12px;
+                margin-top: 32px;
+                padding-top: 24px;
+                border-top: 1px solid #e1e8ed;
+            }
+        </style>
+    `,
+    additionalScripts: ''
+}) 
+%>
+
+<div class="card product-form">
+    <div style="margin-bottom: 24px;">
+        <h1 style="font-size: 28px; font-weight: 700; color: #2c3e50; margin-bottom: 4px;"><%= formTitle %></h1>
+        <p style="color: #6c757d; margin: 0;"><%= isEdit ? 'Update product information' : 'Add a new product to the catalog' %></p>
+    </div>
+
+    <% if (error) { %>
+        <div class="error-message"><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="<%= formAction %>" enctype="multipart/form-data">
+        <div class="form-group">
+            <label class="form-label" for="name">Product Name *</label>
+            <input type="text" id="name" name="name" class="form-input" value="<%= product?.name || '' %>" required>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label" for="category">Category</label>
+            <input type="text" id="category" name="category" class="form-input" value="<%= product?.category || '' %>" placeholder="e.g. Seeds, Nutrients, Lighting">
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label" for="brandId">Brand *</label>
+            <select id="brandId" name="brandId" class="form-select" required>
+                <option value="">Select a brand</option>
+                <% brands.forEach(brand => { %>
+                    <option value="<%= brand.id %>" <%= product?.brandId === brand.id ? 'selected' : '' %>><%= brand.name %></option>
+                <% }) %>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label" for="summarize">Description</label>
+            <textarea id="summarize" name="summarize" class="form-textarea" placeholder="Brief description of the product..."><%= product?.summarize || '' %></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label" for="avatar">Product Avatar</label>
+            <input type="file" id="avatar" name="avatar" class="form-input" accept="image/*">
+            <% if (isEdit && product.avatar) { %>
+                <img src="/uploads/<%= product.avatar.path %>" class="avatar-preview" alt="<%= product.name %> Avatar">
+            <% } %>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary"><%= isEdit ? 'Update Product' : 'Create Product' %></button>
+            <a href="/admin/products" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
