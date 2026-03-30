@@ -4,7 +4,6 @@ import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { join } from "path";
 import { AppModule } from "./app.module";
-import { setupAdminJS } from "./infrastructure/adminjs/adminjs-setup";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,7 +14,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Add body-parser middleware for AdminJS login form
+  // Add body-parser middleware for form data and file uploads
   app.use(require("express").json());
   app.use(require("express").urlencoded({ extended: true }));
 
@@ -50,9 +49,6 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup("docs", app, document);
-
-  // Setup AdminJS
-  await setupAdminJS(app);
 
   await app.listen(port);
   console.log(`🚀 Application is running on: http://localhost:${port}`);
