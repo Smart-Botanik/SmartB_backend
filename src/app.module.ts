@@ -12,6 +12,7 @@ import { PlantModule } from "./modules/plant/plant.module";
 import { ProductsModule } from "./modules/products/products.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./infrastructure/prisma/prisma.module";
+import { HealthModule } from "./health/health.module";
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { PrismaModule } from "./infrastructure/prisma/prisma.module";
       }),
     }),
     PrismaModule,
+    HealthModule,
     UsersModule,
     AuthModule,
     PlantModule,

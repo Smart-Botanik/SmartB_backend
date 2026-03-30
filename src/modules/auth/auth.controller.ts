@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -81,4 +90,22 @@ export class AuthController {
       email: user.email,
     };
   }
+
+  @ApiOperation({ summary: "Logout user" })
+  @ApiBearerAuth("access-token")
+  @ApiOkResponse({ description: "Successfully logged out" })
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post("logout")
+  async logout() {
+    // For JWT tokens, logout is typically handled client-side by removing tokens
+    // The server could implement token blacklisting if needed
+    return {
+      message: "Successfully logged out",
+    };
+  }
 }
+
+@ApiTags("admin-auth")
+@Controller("admin/auth")
+export class AdminAuthController {}
