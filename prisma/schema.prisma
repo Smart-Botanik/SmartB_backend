@@ -39,6 +39,7 @@ model Plant {
   diaryId   String?
   name      String
   summarize String?  @default("")
+  current   Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -47,6 +48,52 @@ model Plant {
 
   @@index([userId])
   @@index([diaryId])
+}
+
+model Event {
+  id         String   @id @default(cuid())
+  actionPath String
+  targetType String
+  targetId   String
+  payload    Json
+  timestamp  DateTime @default(now())
+  isSystem   Boolean  @default(false)
+
+  @@index([targetType, targetId, timestamp])
+  @@index([actionPath])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  label     String   @unique
+  targetType String?
+  color     String?
+  icon      String?
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  actionPathRegistries ActionPathRegistry[]
+
+  @@index([category])
+  @@index([targetType])
+  @@index([label])
+}
+
+model ActionPathRegistry {
+  id         String   @id @default(cuid())
+  actionPath String   @unique
+  targetType String
+  mapping    Json
+  conditions Json?
+  tagId      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tag Tag? @relation(fields: [tagId], references: [id], onDelete: SetNull)
+
+  @@index([targetType])
+  @@index([tagId])
 }
 
 model Diary {
