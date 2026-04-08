@@ -50,12 +50,14 @@ export class BrandsResolver {
     input: {
       name: string;
       category: BrandCategory;
+      description?: string | null;
       avatarMediaId?: string | null;
     },
   ) {
     return this.brandsService.create({
       name: input.name,
       category: input.category,
+      description: input.description,
       avatarMediaId: input.avatarMediaId,
     });
   }
@@ -68,7 +70,7 @@ export class BrandsResolver {
     input: {
       name?: string | null;
       category?: BrandCategory | null;
-      summarize?: string | null;
+      description?: string | null;
       avatarMediaId?: string | null;
     },
   ) {
@@ -76,7 +78,7 @@ export class BrandsResolver {
       id,
       name: input.name,
       category: input.category,
-      summarize: input.summarize,
+      description: input.description,
       avatarMediaId: input.avatarMediaId,
     });
   }

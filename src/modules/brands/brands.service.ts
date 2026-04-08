@@ -47,12 +47,14 @@ export class BrandsService {
   async create(params: {
     name: string;
     category: BrandCategory;
+    description?: string | null;
     avatarMediaId?: string | null;
   }) {
     return this.prisma.brand.create({
       data: {
         name: params.name,
         category: params.category,
+        description: params.description ?? undefined,
         ...(params.avatarMediaId && { avatarMediaId: params.avatarMediaId }),
       },
       include: { avatar: true },
@@ -63,7 +65,7 @@ export class BrandsService {
     id: string;
     name?: string | null;
     category?: BrandCategory | null;
-    summarize?: string | null;
+    description?: string | null;
     avatarMediaId?: string | null;
   }) {
     await this.getById(params.id);
@@ -73,7 +75,7 @@ export class BrandsService {
       data: {
         name: params.name ?? undefined,
         category: params.category ?? undefined,
-        summarize: params.summarize ?? undefined,
+        description: params.description ?? undefined,
         avatarMediaId:
           params.avatarMediaId === null
             ? null
