@@ -62,7 +62,7 @@ async function main() {
     data: {
       name: "GrowLight Pro",
       category: "LAMP",
-      summarize: "Professional LED grow lights for indoor cultivation",
+      description: "Professional LED grow lights for indoor cultivation",
     },
   });
 
@@ -70,7 +70,7 @@ async function main() {
     data: {
       name: "TentMaster",
       category: "TENT",
-      summarize: "High-quality grow tents in various sizes",
+      description: "High-quality grow tents in various sizes",
     },
   });
 
@@ -78,7 +78,7 @@ async function main() {
     data: {
       name: "Breeders Choice",
       category: "BREADER",
-      summarize: "Premium genetics and seeds collection",
+      description: "Premium genetics and seeds collection",
     },
   });
 
@@ -116,6 +116,226 @@ async function main() {
   });
 
   console.log("Created sample products");
+
+  await (prisma as any).actionPathRegistryGroup.upsert({
+    where: { path: "common" },
+    update: {
+      description: "Default group",
+    },
+    create: {
+      path: "common",
+      description: "Default group",
+    },
+  });
+
+  await prisma.actionPathRegistry.upsert({
+    where: { actionPath: "plant.growth.watering" },
+    update: {
+      description: "Watering",
+      targetType: "Plant",
+      mapping: {},
+      autoTagRules: [
+        {
+          name: "Lockout Risk",
+          tag_id: "uuid-lockout-tag",
+          logic: "AND",
+          conditions: [
+            { field: "ph", operator: "lt", value: 5.0 },
+            { field: "ppm", operator: "gt", value: 1200 },
+          ],
+        },
+      ],
+      schema: {
+        type: "object",
+        required: ["watering"],
+        properties: {
+          watering: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+    create: {
+      actionPath: "plant.growth.watering",
+      description: "Watering",
+      targetType: "Plant",
+      mapping: {},
+      autoTagRules: [
+        {
+          name: "Lockout Risk",
+          tag_id: "uuid-lockout-tag",
+          logic: "AND",
+          conditions: [
+            { field: "ph", operator: "lt", value: 5.0 },
+            { field: "ppm", operator: "gt", value: 1200 },
+          ],
+        },
+      ],
+      schema: {
+        type: "object",
+        required: ["watering"],
+        properties: {
+          watering: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+  });
+
+  await prisma.actionPathRegistry.upsert({
+    where: { actionPath: "plant.growth.transplant" },
+    update: {
+      description: "Transplant",
+      targetType: "Plant",
+      mapping: {
+        "transplant.potSize": { currentKey: "pot_size", is_state_field: true },
+        "transplant.potType": { currentKey: "pot_type", is_state_field: true },
+      },
+      schema: {
+        type: "object",
+        required: ["transplant"],
+        properties: {
+          transplant: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+    create: {
+      actionPath: "plant.growth.transplant",
+      description: "Transplant",
+      targetType: "Plant",
+      mapping: {
+        "transplant.potSize": { currentKey: "pot_size", is_state_field: true },
+        "transplant.potType": { currentKey: "pot_type", is_state_field: true },
+      },
+      schema: {
+        type: "object",
+        required: ["transplant"],
+        properties: {
+          transplant: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+  });
+
+  await prisma.actionPathRegistry.upsert({
+    where: { actionPath: "plant.growth.updateState" },
+    update: {
+      description: "Update state",
+      targetType: "Plant",
+      mapping: {
+        "state.period": { currentKey: "period", is_state_field: true },
+      },
+      schema: {
+        type: "object",
+        required: ["state"],
+        properties: {
+          state: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+    create: {
+      actionPath: "plant.growth.updateState",
+      description: "Update state",
+      targetType: "Plant",
+      mapping: {
+        "state.period": { currentKey: "period", is_state_field: true },
+      },
+      schema: {
+        type: "object",
+        required: ["state"],
+        properties: {
+          state: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+  });
+
+  await prisma.actionPathRegistry.upsert({
+    where: { actionPath: "plant.growth.measurement" },
+    update: {
+      description: "Measurement",
+      targetType: "Plant",
+      mapping: {
+        "measurement.height_cm": {
+          currentKey: "height_cm",
+          is_state_field: true,
+        },
+        "measurement.width_cm": {
+          currentKey: "width_cm",
+          is_state_field: true,
+        },
+        "measurement.notes": {
+          currentKey: "measurement_notes",
+          is_state_field: false,
+        },
+      },
+      schema: {
+        type: "object",
+        required: ["measurement"],
+        properties: {
+          measurement: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+    create: {
+      actionPath: "plant.growth.measurement",
+      description: "Measurement",
+      targetType: "Plant",
+      mapping: {
+        "measurement.height_cm": {
+          currentKey: "height_cm",
+          is_state_field: true,
+        },
+        "measurement.width_cm": {
+          currentKey: "width_cm",
+          is_state_field: true,
+        },
+        "measurement.notes": {
+          currentKey: "measurement_notes",
+          is_state_field: false,
+        },
+      },
+      schema: {
+        type: "object",
+        required: ["measurement"],
+        properties: {
+          measurement: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+  });
+
+  await prisma.actionPathRegistry.upsert({
+    where: { actionPath: "plant.lifecycle.stage_change" },
+    update: {
+      description: "Stage change",
+      targetType: "Plant",
+      mapping: {
+        "stage.from": { currentKey: "stage_from", is_state_field: false },
+        "stage.to": { currentKey: "stage", is_state_field: true },
+      },
+      schema: {
+        type: "object",
+        required: ["stage"],
+        properties: {
+          stage: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+    create: {
+      actionPath: "plant.lifecycle.stage_change",
+      description: "Stage change",
+      targetType: "Plant",
+      mapping: {
+        "stage.from": { currentKey: "stage_from", is_state_field: false },
+        "stage.to": { currentKey: "stage", is_state_field: true },
+      },
+      schema: {
+        type: "object",
+        required: ["stage"],
+        properties: {
+          stage: { type: "object" },
+        },
+      } as unknown as any,
+    } as any,
+  });
 
   console.log("Seeding finished.");
 }

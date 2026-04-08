@@ -12,7 +12,8 @@
     "prisma:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "ts-node prisma/seed.ts"
+    "db:seed": "ts-node prisma/seed.ts",
+    "export:registry-manifest": "ts-node src/scripts/export-registry-manifest.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

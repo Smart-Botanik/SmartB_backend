@@ -14,8 +14,8 @@ async function createSampleData() {
         create: {
           id: "brand-greenthumb",
           name: "GreenThumb",
-          category: "HOME",
-          summarize: "Premium gardening tools and supplies",
+          category: "COMMON",
+          description: "Premium gardening tools and supplies",
         },
       }),
       prisma.brand.upsert({
@@ -24,8 +24,8 @@ async function createSampleData() {
         create: {
           id: "brand-plantpro",
           name: "PlantPro",
-          category: "HOME",
-          summarize: "Professional plant care products",
+          category: "COMMON",
+          description: "Professional plant care products",
         },
       }),
       prisma.brand.upsert({
@@ -34,8 +34,8 @@ async function createSampleData() {
         create: {
           id: "brand-ecogrow",
           name: "EcoGrow",
-          category: "HOME",
-          summarize: "Sustainable gardening solutions",
+          category: "COMMON",
+          description: "Sustainable gardening solutions",
         },
       }),
     ]);
