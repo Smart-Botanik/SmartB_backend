@@ -49,6 +49,13 @@ export class EventsResolver {
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.ADMIN)
+  @Query("actionPathRegistryGroups")
+  actionPathRegistryGroups(@Context("req") _req: GqlRequest) {
+    return this.eventsService.listRegistryGroups();
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Mutation("upsertActionPathRegistry")
   upsertActionPathRegistry(
     @Context("req") _req: GqlRequest,
@@ -56,15 +63,73 @@ export class EventsResolver {
     @Args("targetType") targetType: string,
     @Args("mappingJson") mappingJson: string,
     @Args("conditionsJson", { nullable: true }) conditionsJson?: string,
+    @Args("autoTagRulesJson", { nullable: true }) autoTagRulesJson?: string,
+    @Args("schemaJson", { nullable: true }) schemaJson?: string,
     @Args("tagId", { nullable: true }) tagId?: string,
+    @Args("description", { nullable: true }) description?: string,
   ) {
     return this.eventsService.upsertRegistry({
       actionPath,
       targetType,
       mappingJson,
       conditionsJson,
+      autoTagRulesJson,
+      schemaJson,
       tagId,
+      description,
     });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("createActionPathRegistryGroup")
+  createActionPathRegistryGroup(
+    @Context("req") _req: GqlRequest,
+    @Args("path") path: string,
+    @Args("description", { nullable: true }) description?: string,
+  ) {
+    return this.eventsService.createRegistryGroup({ path, description });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("updateActionPathRegistryGroup")
+  updateActionPathRegistryGroup(
+    @Context("req") _req: GqlRequest,
+    @Args("id") id: string,
+    @Args("path", { nullable: true }) path?: string,
+    @Args("description", { nullable: true }) description?: string,
+  ) {
+    return this.eventsService.updateRegistryGroup({ id, path, description });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("updateActionPathRegistriesOrder")
+  updateActionPathRegistriesOrder(
+    @Context("req") _req: GqlRequest,
+    @Args("input")
+    input: Array<{
+      id: string;
+      groupId?: string | null;
+      position: number;
+    }>,
+  ) {
+    return this.eventsService.updateActionPathRegistriesOrder(input);
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("updateActionPathRegistryGroupsOrder")
+  updateActionPathRegistryGroupsOrder(
+    @Context("req") _req: GqlRequest,
+    @Args("input")
+    input: Array<{
+      id: string;
+      order: number;
+    }>,
+  ) {
+    return this.eventsService.updateActionPathRegistryGroupsOrder(input);
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
