@@ -83,17 +83,37 @@ model Tag {
 model ActionPathRegistry {
   id         String   @id @default(cuid())
   actionPath String   @unique
+  description String?  @default("")
   targetType String
   mapping    Json
   conditions Json?
+  autoTagRules Json?
+  schema     Json?
   tagId      String?
+  groupId    String?
+  position   Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   tag Tag? @relation(fields: [tagId], references: [id], onDelete: SetNull)
+  group ActionPathRegistryGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([targetType])
   @@index([tagId])
+  @@index([groupId, position])
+}
+
+model ActionPathRegistryGroup {
+  id          String   @id @default(cuid())
+  path        String   @unique
+  description String?  @default("")
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  registries  ActionPathRegistry[]
+
+  @@index([path])
 }
 
 model Diary {
@@ -135,7 +155,7 @@ model Brand {
   name          String
   category      BrandCategory
   avatarMediaId String?  @unique
-  summarize     String?  @default("")
+  description   String?  @default("")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
