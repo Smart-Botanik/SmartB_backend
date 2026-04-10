@@ -1,6 +1,9 @@
 import { UseGuards } from "@nestjs/common";
 import { Args, Mutation, Query, Resolver } from "@nestjs/graphql";
+import { Role } from "@growing/contracts";
+import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
+import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { BrandsService } from "./brands.service";
 import { BrandCategory } from "@prisma/client";
 
@@ -8,6 +11,7 @@ import { BrandCategory } from "@prisma/client";
 export class BrandsResolver {
   constructor(private readonly brandsService: BrandsService) {}
 
+  /** Каталог брендов: только для аутентифицированных пользователей (любая роль). */
   @UseGuards(GqlJwtAuthGuard)
   @Query("brands")
   brands(
@@ -16,17 +20,21 @@ export class BrandsResolver {
     @Args("query", { nullable: true }) query?: string,
     @Args("category", { nullable: true }) category?: string,
   ) {
-    // Convert string category to enum if provided
     let categoryEnum: BrandCategory | null = null;
     if (category) {
-      // Map frontend string values to backend enum values
+      const raw = category.trim();
+      const lower = raw.toLowerCase();
       const categoryMap: Record<string, BrandCategory> = {
         breader: BrandCategory.BREADER,
         tent: BrandCategory.TENT,
         lamp: BrandCategory.LAMP,
         common: BrandCategory.COMMON,
+        BREADER: BrandCategory.BREADER,
+        TENT: BrandCategory.TENT,
+        LAMP: BrandCategory.LAMP,
+        COMMON: BrandCategory.COMMON,
       };
-      categoryEnum = categoryMap[category.toLowerCase()] || null;
+      categoryEnum = categoryMap[raw] ?? categoryMap[lower] ?? null;
     }
 
     return this.brandsService.list({
@@ -43,13 +51,14 @@ export class BrandsResolver {
     return this.brandsService.getById(id);
   }
 
-  @UseGuards(GqlJwtAuthGuard)
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Mutation("createBrand")
   createBrand(
     @Args("input")
     input: {
       name: string;
-      category: BrandCategory;
+      category: string;
       description?: string | null;
       avatarMediaId?: string | null;
     },
@@ -62,14 +71,15 @@ export class BrandsResolver {
     });
   }
 
-  @UseGuards(GqlJwtAuthGuard)
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Mutation("updateBrand")
   updateBrand(
     @Args("id") id: string,
     @Args("input")
     input: {
       name?: string | null;
-      category?: BrandCategory | null;
+      category?: string | null;
       description?: string | null;
       avatarMediaId?: string | null;
     },
@@ -77,13 +87,14 @@ export class BrandsResolver {
     return this.brandsService.update({
       id,
       name: input.name,
-      category: input.category,
+      category: input.category ?? undefined,
       description: input.description,
       avatarMediaId: input.avatarMediaId,
     });
   }
 
-  @UseGuards(GqlJwtAuthGuard)
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Mutation("deleteBrand")
   deleteBrand(@Args("id") id: string) {
     return this.brandsService.delete(id);

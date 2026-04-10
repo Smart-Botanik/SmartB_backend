@@ -35,8 +35,12 @@ export class EventsResolver {
     });
   }
 
+  /**
+   * Чтение реестра для клиентского auto-tag (`autoTagRules` + mapping).
+   * Мутации registry остаются только у ADMIN.
+   */
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.USER)
   @Query("actionPathRegistries")
   actionPathRegistries(
     @Context("req") _req: GqlRequest,
@@ -48,7 +52,17 @@ export class EventsResolver {
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.USER)
+  @Query("actionPathRegistry")
+  actionPathRegistry(
+    @Context("req") _req: GqlRequest,
+    @Args("actionPath") actionPath: string,
+  ) {
+    return this.eventsService.getRegistryByActionPath(actionPath);
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN, Role.USER)
   @Query("actionPathRegistryGroups")
   actionPathRegistryGroups(@Context("req") _req: GqlRequest) {
     return this.eventsService.listRegistryGroups();

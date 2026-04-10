@@ -4,27 +4,13 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import {
+  getValueAtPayloadPath,
+  validateAutoTagRulesInput,
+} from "@growing/contracts";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 type JsonObject = Record<string, unknown>;
-
-function getValueAtPath(obj: unknown, path: string): unknown {
-  if (!path) {
-    return undefined;
-  }
-  const parts = path.split(".").filter(Boolean);
-  let current: unknown = obj;
-  for (const part of parts) {
-    if (!isPlainObject(current)) {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[part];
-    if (current === undefined) {
-      return undefined;
-    }
-  }
-  return current;
-}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -356,55 +342,12 @@ function parseAutoTagRulesJson(input: string): unknown {
     throw new BadRequestException("Invalid autoTagRulesJson: expected JSON");
   }
 
-  const autoTagRulesArraySchema = {
-    type: "array",
-    items: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        tag_id: { type: "string" },
-        logic: { type: "string", enum: ["AND", "OR"] },
-        conditions: {
-          type: "array",
-          minItems: 1,
-          items: {
-            type: "object",
-            required: ["field", "operator", "value"],
-            properties: {
-              field: { type: "string" },
-              operator: {
-                type: "string",
-                enum: ["lt", "gt", "eq", "lte", "gte"],
-              },
-              value: {
-                oneOf: [{ type: "number" }, { type: "string" }],
-              },
-            },
-          },
-        },
-      },
-      required: ["name", "tag_id", "conditions"],
-    },
-  };
-
-  validateValueAgainstSchema({
-    value: parsed,
-    schema: autoTagRulesArraySchema,
-    context: "autoTagRulesJson",
-  });
-
-  for (let i = 0; i < (parsed as any[]).length; i += 1) {
-    const r = (parsed as any[])[i];
-    const hasLogic = r.logic === "AND" || r.logic === "OR";
-    const min = hasLogic ? 2 : 1;
-    if (!Array.isArray(r.conditions) || r.conditions.length < min) {
-      throw new BadRequestException(
-        `Invalid autoTagRulesJson[${i}].conditions: must have at least ${min} items`,
-      );
-    }
+  const result = validateAutoTagRulesInput(parsed);
+  if (!result.ok) {
+    throw new BadRequestException(result.errors.join("; "));
   }
 
-  return parsed;
+  return result.rules;
 }
 
 @Injectable()
@@ -617,6 +560,21 @@ export class EventsService {
       items,
       total,
     };
+  }
+
+  async getRegistryByActionPath(actionPath: string) {
+    const trimmed = actionPath?.trim();
+    if (!trimmed) {
+      throw new BadRequestException("actionPath is required");
+    }
+
+    return this.prisma.actionPathRegistry.findUnique({
+      where: { actionPath: trimmed },
+      include: {
+        tag: true,
+        group: true,
+      },
+    });
   }
 
   async updateActionPathRegistriesOrder(
@@ -835,33 +793,33 @@ export class EventsService {
           continue;
         }
 
-        const value = getValueAtPath(payload, payloadKey);
+        const value = getValueAtPayloadPath(payload, payloadKey);
         if (value !== undefined) {
           patch[entry.currentKey] = value;
         }
       }
     }
 
-    const watering = getValueAtPath(payload, "watering");
+    const watering = getValueAtPayloadPath(payload, "watering");
     if (isPlainObject(watering)) {
       patch.last_watered_at = createdEvent.timestamp.toISOString();
 
-      const nutrient = getValueAtPath(watering, "nutrient");
-      const drainage = getValueAtPath(watering, "drainage");
+      const nutrient = getValueAtPayloadPath(watering, "nutrient");
+      const drainage = getValueAtPayloadPath(watering, "drainage");
 
       const ph =
-        (typeof getValueAtPath(nutrient, "ph") === "number"
-          ? (getValueAtPath(nutrient, "ph") as number)
+        (typeof getValueAtPayloadPath(nutrient, "ph") === "number"
+          ? (getValueAtPayloadPath(nutrient, "ph") as number)
           : undefined) ??
-        (typeof getValueAtPath(drainage, "ph") === "number"
-          ? (getValueAtPath(drainage, "ph") as number)
+        (typeof getValueAtPayloadPath(drainage, "ph") === "number"
+          ? (getValueAtPayloadPath(drainage, "ph") as number)
           : undefined);
       const ppm =
-        (typeof getValueAtPath(nutrient, "ppm") === "number"
-          ? (getValueAtPath(nutrient, "ppm") as number)
+        (typeof getValueAtPayloadPath(nutrient, "ppm") === "number"
+          ? (getValueAtPayloadPath(nutrient, "ppm") as number)
           : undefined) ??
-        (typeof getValueAtPath(drainage, "ppm") === "number"
-          ? (getValueAtPath(drainage, "ppm") as number)
+        (typeof getValueAtPayloadPath(drainage, "ppm") === "number"
+          ? (getValueAtPayloadPath(drainage, "ppm") as number)
           : undefined);
 
       if (ph !== undefined) {
