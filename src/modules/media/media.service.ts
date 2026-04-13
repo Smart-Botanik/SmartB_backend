@@ -231,17 +231,33 @@ export class MediaService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
+    const and: any[] = [];
 
     if (search) {
-      where.OR = [
-        { key: { contains: search, mode: "insensitive" } },
-        { url: { contains: search, mode: "insensitive" } },
-        { mime: { contains: search, mode: "insensitive" } },
-      ];
+      and.push({
+        OR: [
+          { key: { contains: search, mode: "insensitive" } },
+          { url: { contains: search, mode: "insensitive" } },
+          { mime: { contains: search, mode: "insensitive" } },
+        ],
+      });
     }
 
     if (folder) {
-      where.key = { startsWith: `uploads/${folder}/` };
+      const normalized = folder.replace(/^\/+/u, "").replace(/\/+$/u, "");
+      if (normalized.length > 0) {
+        // Keys in DB are relative paths (e.g. `brands/2026/04/file.png`), not `uploads/...`.
+        and.push({
+          OR: [
+            { key: { startsWith: `${normalized}/` } },
+            { key: { startsWith: `uploads/${normalized}/` } },
+          ],
+        });
+      }
+    }
+
+    if (and.length > 0) {
+      where.AND = and;
     }
 
     const [media, total] = await Promise.all([
