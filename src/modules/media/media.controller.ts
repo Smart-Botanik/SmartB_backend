@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Post,
   Get,
@@ -25,6 +26,39 @@ import {
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
+  private parseJsonField<T>(raw: unknown, fieldName: string): T | undefined {
+    if (raw === undefined || raw === null || raw === "") {
+      return undefined;
+    }
+    if (typeof raw === "object") {
+      return raw as T;
+    }
+    if (typeof raw === "string") {
+      try {
+        return JSON.parse(raw) as T;
+      } catch {
+        throw new BadRequestException(`Invalid JSON in field: ${fieldName}`);
+      }
+    }
+    throw new BadRequestException(`Invalid type for field: ${fieldName}`);
+  }
+
+  private parseBool(raw: unknown): boolean | undefined {
+    if (raw === undefined || raw === null || raw === "") {
+      return undefined;
+    }
+    if (typeof raw === "boolean") {
+      return raw;
+    }
+    if (raw === "true" || raw === "1") {
+      return true;
+    }
+    if (raw === "false" || raw === "0") {
+      return false;
+    }
+    return undefined;
+  }
+
   @Post("upload")
   @UseInterceptors(FileInterceptor("file"))
   async upload(
@@ -32,7 +66,7 @@ export class MediaController {
     @Body() body: { folder?: string; entityType?: string; entityId?: string },
   ) {
     if (!file) {
-      throw new Error("Missing file");
+      throw new BadRequestException("Missing file");
     }
 
     const media = await this.mediaService.uploadMediaWithFolder({
@@ -72,8 +106,21 @@ export class MediaController {
     },
   ) {
     if (!file) {
-      throw new Error("Missing file");
+      throw new BadRequestException("Missing file");
     }
+
+    const cropOptions = this.parseJsonField<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>(body.cropOptions, "cropOptions");
+    const resizeOptions = this.parseJsonField<{
+      width?: number;
+      height?: number;
+      fit?: string;
+    }>(body.resizeOptions, "resizeOptions");
+    const generateThumbnail = this.parseBool(body.generateThumbnail);
 
     const media = await this.mediaService.uploadMediaWithFolder({
       fileBuffer: file.buffer,
@@ -83,9 +130,9 @@ export class MediaController {
       folder: body.folder,
       entityType: body.entityType as any,
       entityId: body.entityId,
-      cropOptions: body.cropOptions,
-      resizeOptions: body.resizeOptions,
-      generateThumbnail: body.generateThumbnail,
+      cropOptions,
+      resizeOptions,
+      generateThumbnail,
     });
 
     return {
@@ -111,8 +158,23 @@ export class MediaController {
     },
   ) {
     if (!file) {
-      throw new Error("Missing file");
+      throw new BadRequestException("Missing file");
     }
+
+    const cropOptions = this.parseJsonField<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>(body.cropOptions, "cropOptions");
+    if (!cropOptions) {
+      throw new BadRequestException("cropOptions is required");
+    }
+    const resizeOptions = this.parseJsonField<{
+      width?: number;
+      height?: number;
+      fit?: string;
+    }>(body.resizeOptions, "resizeOptions");
 
     const media = await this.mediaService.uploadMediaWithFolder({
       fileBuffer: file.buffer,
@@ -120,8 +182,8 @@ export class MediaController {
       mimeType: file.mimetype,
       size: file.size,
       folder: "cropped",
-      cropOptions: body.cropOptions,
-      resizeOptions: body.resizeOptions,
+      cropOptions,
+      resizeOptions,
     });
 
     return {
@@ -140,7 +202,7 @@ export class MediaController {
   @UseInterceptors(FileInterceptor("file"))
   async getImageInfo(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
-      throw new Error("Missing file");
+      throw new BadRequestException("Missing file");
     }
 
     const info = await this.mediaService.getImageInfo(file.buffer);
@@ -163,7 +225,7 @@ export class MediaController {
     @Body() body: { folder?: string; entityType?: string; entityId?: string },
   ) {
     if (!file) {
-      throw new Error("Missing file");
+      throw new BadRequestException("Missing file");
     }
 
     const media = await this.mediaService.uploadMediaWithFolder({
@@ -203,8 +265,21 @@ export class MediaController {
     },
   ) {
     if (!file) {
-      throw new Error("Missing file");
+      throw new BadRequestException("Missing file");
     }
+
+    const cropOptions = this.parseJsonField<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>(body.cropOptions, "cropOptions");
+    const resizeOptions = this.parseJsonField<{
+      width?: number;
+      height?: number;
+      fit?: string;
+    }>(body.resizeOptions, "resizeOptions");
+    const generateThumbnail = this.parseBool(body.generateThumbnail);
 
     const media = await this.mediaService.uploadMediaWithFolder({
       fileBuffer: file.buffer,
@@ -214,9 +289,9 @@ export class MediaController {
       folder: body.folder,
       entityType: body.entityType as any,
       entityId: body.entityId,
-      cropOptions: body.cropOptions,
-      resizeOptions: body.resizeOptions,
-      generateThumbnail: body.generateThumbnail,
+      cropOptions,
+      resizeOptions,
+      generateThumbnail,
     });
 
     return {
@@ -236,6 +311,12 @@ export class MediaController {
     return this.mediaService.getMediaList(query);
   }
 
+  /** Должен быть объявлен до `admin/media/:id`, иначе `stats` перехватывается как id. */
+  @Get("admin/media/stats")
+  async adminStats() {
+    return this.mediaService.getMediaStats();
+  }
+
   @Get("admin/media/:id")
   async adminGetById(@Param("id") id: string) {
     return this.mediaService.getMediaById(id);
@@ -252,10 +333,5 @@ export class MediaController {
     @Body() body: { width?: number; height?: number },
   ) {
     return this.mediaService.updateMediaMetadata(id, body);
-  }
-
-  @Get("admin/media/stats")
-  async adminStats() {
-    return this.mediaService.getMediaStats();
   }
 }
