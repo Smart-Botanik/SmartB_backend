@@ -7,9 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =============================================================================
+// Срез схемы (фиксация после выходных, 2026-04-13)
+// - Role: только USER | ADMIN (совпадает с JWT/контрактами; миграция role_user_admin_only).
+// - Location: владелец userId, статусы/типы Strapi-совместимые, specs (блоки lighting,
+//   enclosure, space, area), связи Plant.locationId и M2M Diary↔Location.
+// - Подробности домена: memory/locations/main.md в корневом репозитории.
+// =============================================================================
+
 enum Role {
   USER
-  MODERATOR
   ADMIN
 }
 
@@ -29,25 +36,29 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  plants Plant[]
-  diaries Diary[]
+  plants    Plant[]
+  diaries   Diary[]
+  locations Location[]
 }
 
 model Plant {
-  id        String   @id @default(cuid())
-  userId    String
-  diaryId   String?
-  name      String
-  summarize String?  @default("")
-  current   Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  userId     String
+  diaryId    String?
+  locationId String?
+  name       String
+  summarize  String?  @default("")
+  current    Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  diary   Diary?  @relation(fields: [diaryId], references: [id], onDelete: SetNull)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  diary    Diary?    @relation(fields: [diaryId], references: [id], onDelete: SetNull)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([diaryId])
+  @@index([locationId])
 }
 
 model Event {
@@ -64,14 +75,14 @@ model Event {
 }
 
 model Tag {
-  id        String   @id @default(cuid())
-  label     String   @unique
+  id         String   @id @default(cuid())
+  label      String   @unique
   targetType String?
-  color     String?
-  icon      String?
-  category  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  color      String?
+  icon       String?
+  category   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   actionPathRegistries ActionPathRegistry[]
 
@@ -81,21 +92,21 @@ model Tag {
 }
 
 model ActionPathRegistry {
-  id         String   @id @default(cuid())
-  actionPath String   @unique
-  description String?  @default("")
-  targetType String
-  mapping    Json
-  conditions Json?
+  id           String   @id @default(cuid())
+  actionPath   String   @unique
+  description  String?  @default("")
+  targetType   String
+  mapping      Json
+  conditions   Json?
   autoTagRules Json?
-  schema     Json?
-  tagId      String?
-  groupId    String?
-  position   Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  schema       Json?
+  tagId        String?
+  groupId      String?
+  position     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  tag Tag? @relation(fields: [tagId], references: [id], onDelete: SetNull)
+  tag   Tag?                     @relation(fields: [tagId], references: [id], onDelete: SetNull)
   group ActionPathRegistryGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([targetType])
@@ -111,7 +122,7 @@ model ActionPathRegistryGroup {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  registries  ActionPathRegistry[]
+  registries ActionPathRegistry[]
 
   @@index([path])
 }
@@ -125,8 +136,9 @@ model Diary {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plants Plant[]
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plants    Plant[]
+  locations Location[] @relation("DiaryLocations")
 
   @@index([userId])
 }
@@ -151,13 +163,13 @@ model Media {
 }
 
 model Brand {
-  id            String   @id @default(cuid())
+  id            String        @id @default(cuid())
   name          String
   category      BrandCategory
-  avatarMediaId String?  @unique
-  description   String?  @default("")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  avatarMediaId String?       @unique
+  description   String?       @default("")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   avatar   Media?    @relation("BrandAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   products Product[]
@@ -176,10 +188,136 @@ model Product {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  brand  Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  avatar Media? @relation("ProductAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  brand                      Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  avatar                     Media?                   @relation("ProductAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  locationSpecEnclosures LocationSpecsEnclosure[]
 
   @@index([brandId])
   @@index([category])
   @@index([name])
+}
+
+// --- Location (ex Strapi api::location) ------------------------------------
+
+enum LocationStatus {
+  active
+  archived
+}
+
+/// indoor | outdoor | greenhouse — задаёт семейство subType
+enum LocationType {
+  indoor
+  outdoor
+  greenhouse
+}
+
+/// Бывший Strapi `sub_type`; префикс должен соответствовать `type` (проверка на уровне приложения)
+enum LocationSubType {
+  indoor_growbox
+  indoor_cabinet
+  indoor_pc_case
+  indoor_shelf
+  indoor_room
+  outdoor_bed
+  outdoor_soil
+  outdoor_pot
+  greenhouse_classic
+  greenhouse_tunnel
+}
+
+enum LocationWateringType {
+  manual
+  drip
+  hydroponics
+  aeroponics
+}
+
+/// Дискриминант для блоков бывшего dynamic zone `specs`
+enum LocationSpecKind {
+  lighting
+  enclosure
+  space
+  area
+}
+
+model Location {
+  id            String                @id @default(cuid())
+  userId        String
+  name          String
+  status        LocationStatus        @default(active)
+  type          LocationType?
+  subType       LocationSubType?
+  wateringType  LocationWateringType?
+  description   String?
+  capacity      Int?
+  occupiedSlots Int?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plants     Plant[]
+  diaries    Diary[]             @relation("DiaryLocations")
+  specBlocks LocationSpecBlock[]
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+/// Упорядоченный список блоков specs (аналог Strapi dynamic zone)
+model LocationSpecBlock {
+  id         String           @id @default(cuid())
+  locationId String
+  position   Int
+  kind       LocationSpecKind
+
+  location  Location                @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  lighting  LocationSpecsLighting?
+  enclosure LocationSpecsEnclosure?
+  space     LocationSpecsSpace?
+  area      LocationSpecsArea?
+
+  @@unique([locationId, position])
+  @@index([locationId])
+}
+
+/// location-specs.lighting — лампы как JSON (массивы IEquipmentLamp-подобных объектов)
+model LocationSpecsLighting {
+  specBlockId     String @id
+  vegetationLamps Json?
+  bloomLamps      Json?
+
+  specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+}
+
+/// location-specs.enclosure
+model LocationSpecsEnclosure {
+  specBlockId String  @id
+  productId   String?
+  width       Float?
+  height      Float?
+  depth       Float?
+
+  specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+  product   Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+}
+
+/// location-specs.space
+model LocationSpecsSpace {
+  specBlockId String @id
+  width       Float?
+  height      Float?
+  depth       Float?
+
+  specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+}
+
+/// location-specs.area
+model LocationSpecsArea {
+  specBlockId String @id
+  width       Float?
+  depth       Float?
+
+  specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
 }
