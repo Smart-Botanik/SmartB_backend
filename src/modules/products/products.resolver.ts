@@ -1,6 +1,9 @@
 import { UseGuards } from "@nestjs/common";
 import { Args, Mutation, Query, Resolver } from "@nestjs/graphql";
+import { Role } from "@growing/contracts";
+import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
+import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { ProductsService } from "./products.service";
 
 @Resolver("Product")
@@ -25,17 +28,28 @@ export class ProductsResolver {
     return this.productsService.getById(id);
   }
 
-  @UseGuards(GqlJwtAuthGuard)
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Mutation("createProduct")
-  createProduct(@Args("input") input: { name: string; category: string; brandId: string }) {
+  createProduct(
+    @Args("input")
+    input: {
+      name: string;
+      category: string;
+      brandId: string;
+      avatarMediaId?: string | null;
+    },
+  ) {
     return this.productsService.create({
       name: input.name,
       category: input.category,
       brandId: input.brandId,
+      avatarMediaId: input.avatarMediaId,
     });
   }
 
-  @UseGuards(GqlJwtAuthGuard)
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Mutation("updateProduct")
   updateProduct(
     @Args("id") id: string,
@@ -56,7 +70,8 @@ export class ProductsResolver {
     });
   }
 
-  @UseGuards(GqlJwtAuthGuard)
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Mutation("deleteProduct")
   deleteProduct(@Args("id") id: string) {
     return this.productsService.delete(id);

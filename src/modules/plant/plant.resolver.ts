@@ -1,7 +1,17 @@
 import { UseGuards } from "@nestjs/common";
-import { Args, Context, Mutation, Query, Resolver } from "@nestjs/graphql";
+import {
+  Args,
+  Context,
+  Mutation,
+  Parent,
+  Query,
+  ResolveField,
+  Resolver,
+} from "@nestjs/graphql";
 import type { Request } from "express";
+import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
+import { locationGraphqlInclude } from "../locations/locations.service";
 import { PlantService } from "./plant.service";
 
 type GqlRequest = Request & { user?: { userId?: string } };
@@ -16,7 +26,10 @@ function getUserIdFromReq(req: GqlRequest): string {
 
 @Resolver("Plant")
 export class PlantResolver {
-  constructor(private readonly plantService: PlantService) {}
+  constructor(
+    private readonly plantService: PlantService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @UseGuards(GqlJwtAuthGuard)
   @Query("plants")
@@ -62,5 +75,16 @@ export class PlantResolver {
   deletePlant(@Context("req") req: GqlRequest, @Args("id") id: string) {
     const userId = getUserIdFromReq(req);
     return this.plantService.delete({ userId, id });
+  }
+
+  @ResolveField("location")
+  location(@Parent() plant: { locationId?: string | null }) {
+    if (!plant.locationId) {
+      return null;
+    }
+    return this.prisma.location.findUnique({
+      where: { id: plant.locationId },
+      include: locationGraphqlInclude,
+    });
   }
 }

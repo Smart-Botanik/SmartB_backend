@@ -1,9 +1,29 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async assertBrandExists(brandId: string) {
+    const brand = await this.prisma.brand.findUnique({ where: { id: brandId } });
+    if (!brand) {
+      throw new BadRequestException("brandId: brand not found");
+    }
+  }
+
+  private async assertAvatarMediaId(mediaId: string) {
+    const media = await this.prisma.media.findUnique({
+      where: { id: mediaId },
+    });
+    if (!media) {
+      throw new BadRequestException("avatarMediaId: media not found");
+    }
+  }
 
   async list(params: {
     limit?: number;
@@ -43,12 +63,22 @@ export class ProductsService {
     return product;
   }
 
-  async create(params: { name: string; category: string; brandId: string }) {
+  async create(params: {
+    name: string;
+    category: string;
+    brandId: string;
+    avatarMediaId?: string | null;
+  }) {
+    await this.assertBrandExists(params.brandId);
+    if (params.avatarMediaId) {
+      await this.assertAvatarMediaId(params.avatarMediaId);
+    }
     return this.prisma.product.create({
       data: {
         name: params.name,
         category: params.category,
         brandId: params.brandId,
+        ...(params.avatarMediaId && { avatarMediaId: params.avatarMediaId }),
       },
       include: { avatar: true, brand: { include: { avatar: true } } },
     });
@@ -62,6 +92,13 @@ export class ProductsService {
     avatarMediaId?: string | null;
   }) {
     await this.getById(params.id);
+
+    if (params.brandId) {
+      await this.assertBrandExists(params.brandId);
+    }
+    if (params.avatarMediaId) {
+      await this.assertAvatarMediaId(params.avatarMediaId);
+    }
 
     return this.prisma.product.update({
       where: { id: params.id },

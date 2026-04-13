@@ -30,6 +30,7 @@ class AuthUserResponseDto {
     createdAt: string;
     email: string;
     username: string;
+    role: string;
   };
 }
 
@@ -37,6 +38,7 @@ class MeResponseDto {
   id!: string;
   username!: string;
   email!: string;
+  role!: string;
 }
 
 @ApiTags("auth")
@@ -88,6 +90,7 @@ export class AuthController {
       id: user.id,
       username: user.username,
       email: user.email,
+      role: (user as { role?: string }).role ?? "USER",
     };
   }
 

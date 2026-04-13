@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { locationGraphqlInclude } from "../locations/locations.service";
 
 @Injectable()
 export class DiaryService {
@@ -31,6 +32,19 @@ export class DiaryService {
     }
 
     return diary;
+  }
+
+  async listLocationsForDiary(params: { userId: string; diaryId: string }) {
+    await this.getById({ userId: params.userId, id: params.diaryId });
+
+    return this.prisma.location.findMany({
+      where: {
+        userId: params.userId,
+        diaries: { some: { id: params.diaryId } },
+      },
+      orderBy: { createdAt: "desc" },
+      include: locationGraphqlInclude,
+    });
   }
 
   async listPlants(params: { userId: string; diaryId: string }) {
@@ -68,12 +82,17 @@ export class DiaryService {
   }) {
     await this.getById({ userId: params.userId, id: params.id });
 
+    const data: { title?: string | null; body?: string } = {};
+    if (params.title !== undefined) {
+      data.title = params.title;
+    }
+    if (params.body !== undefined && params.body !== null) {
+      data.body = params.body;
+    }
+
     return this.prisma.diary.update({
       where: { id: params.id },
-      data: {
-        title: params.title ?? undefined,
-        body: params.body ?? undefined,
-      },
+      data,
     });
   }
 
