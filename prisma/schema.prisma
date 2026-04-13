@@ -9,7 +9,7 @@ datasource db {
 
 // =============================================================================
 // Срез схемы (фиксация после выходных, 2026-04-13)
-// - Role: только USER | ADMIN (совпадает с JWT/контрактами; миграция role_user_admin_only).
+// - Role: только USER | ADMIN (совпадает с JWT/контрактами; при расхождении с БД — отдельная миграция enum).
 // - Location: владелец userId, статусы/типы Strapi-совместимые, specs (блоки lighting,
 //   enclosure, space, area), связи Plant.locationId и M2M Diary↔Location.
 // - Подробности домена: memory/locations/main.md в корневом репозитории.
