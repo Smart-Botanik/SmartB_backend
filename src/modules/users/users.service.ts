@@ -40,7 +40,54 @@ export class UsersService {
         username: params.username,
         passwordHash: params.passwordHash,
         role: params.role ?? Role.USER,
-      } as any,
+      },
     });
+  }
+
+  async findManyForAdmin(params: {
+    skip: number;
+    take: number;
+    search?: string;
+  }) {
+    const search = params.search?.trim();
+    const where =
+      search && search.length > 0
+        ? {
+            OR: [
+              { email: { contains: search, mode: "insensitive" as const } },
+              { username: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {};
+
+    const [rows, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip: params.skip,
+        take: params.take,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      total,
+      items: rows.map((u) => ({
+        id: u.id,
+        email: u.email,
+        username: u.username,
+        role: u.role,
+        createdAt: u.createdAt.toISOString(),
+        updatedAt: u.updatedAt.toISOString(),
+      })),
+    };
   }
 }

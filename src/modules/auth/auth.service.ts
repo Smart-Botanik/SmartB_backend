@@ -54,7 +54,34 @@ export class AuthService {
         createdAt: user.createdAt.toISOString(),
         email: user.email,
         username: user.username,
+        role: (user as { role?: Role }).role ?? Role.USER,
       },
+    };
+  }
+
+  /** Admin-only: create account with explicit role (no auto-login tokens). */
+  async createProvisionedUser(params: {
+    email: string;
+    username: string;
+    password: string;
+    role: Role;
+  }) {
+    const normalizedEmail = params.email.trim().toLowerCase();
+    const normalizedUsername = params.username.trim();
+    const passwordHash = await this.hashPassword(params.password);
+    const user = await this.usersService.createUser({
+      email: normalizedEmail,
+      username: normalizedUsername,
+      passwordHash,
+      role: params.role,
+    });
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
     };
   }
 
@@ -84,6 +111,7 @@ export class AuthService {
         createdAt: user.createdAt.toISOString(),
         email: user.email,
         username: user.username,
+        role: (user as { role?: Role }).role ?? Role.USER,
       },
     };
   }
