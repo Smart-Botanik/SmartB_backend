@@ -67,11 +67,36 @@ model Event {
   targetType String
   targetId   String
   payload    Json
+  registryVersion     String?
+  registrySnapshot    Json?
+  payloadSchemaVersion String?
+  handlerVersion      String?
   timestamp  DateTime @default(now())
   isSystem   Boolean  @default(false)
 
   @@index([targetType, targetId, timestamp])
   @@index([actionPath])
+}
+
+model PlantProjectionCheckpoint {
+  id        String   @id @default(cuid())
+  plantId   String
+  eventId   String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([plantId, createdAt])
+}
+
+model PlantSnapshot {
+  id               String   @id @default(cuid())
+  plantId          String
+  asOfEventId      String?
+  asOfTimestamp    DateTime
+  projectorVersion String
+  state            Json
+  createdAt        DateTime @default(now())
+
+  @@index([plantId, asOfTimestamp])
 }
 
 model Tag {

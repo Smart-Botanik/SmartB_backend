@@ -4,13 +4,21 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import {
-  getValueAtPayloadPath,
-  validateAutoTagRulesInput,
-} from "@growing/contracts";
+import { validateAutoTagRulesInput } from "@growing/contracts";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { PlantProjectorService } from "./plant-projector.service";
 
 type JsonObject = Record<string, unknown>;
+type RuntimeEvent = {
+  id: string;
+  actionPath: string;
+  targetType: string;
+  targetId: string;
+  payload: unknown;
+  timestamp: Date;
+  registrySnapshot?: unknown;
+  payloadSchemaVersion?: string | null;
+};
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -352,7 +360,15 @@ function parseAutoTagRulesJson(input: string): unknown {
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly projectionOnlyMode =
+    process.env.EVENTS_PROJECTION_ONLY === "true";
+  private readonly syncProjectorEnabled =
+    process.env.EVENTS_SYNC_PROJECTOR !== "false";
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly plantProjector: PlantProjectorService,
+  ) {}
 
   async listRegistryGroups() {
     try {
@@ -760,15 +776,28 @@ export class EventsService {
       actionPath: params.actionPath,
     });
 
-    const createdEvent = await this.prisma.event.create({
+    const createdEvent = (await this.prisma.event.create({
       data: {
         actionPath: params.actionPath,
         targetType: "Plant",
         targetId: params.plantId,
         payload: payload as unknown as Prisma.InputJsonValue,
+        registryVersion: registry ? this.buildRegistryVersion(registry) : null,
+        registrySnapshot: registry
+          ? ({
+              mapping: registry.mapping,
+              schema: registry.schema ?? null,
+              targetType: registry.targetType,
+              actionPath: registry.actionPath,
+            } as unknown as Prisma.InputJsonValue)
+          : null,
+        payloadSchemaVersion: this.extractPayloadSchemaVersion(
+          (registry as unknown as { schema?: unknown } | null)?.schema,
+        ),
+        handlerVersion: PlantProjectorService.HANDLER_VERSION,
         isSystem: params.isSystem ?? false,
-      },
-    });
+      } as any,
+    })) as unknown as RuntimeEvent;
 
     const plant = await this.prisma.plant.findUnique({
       where: { id: params.plantId },
@@ -777,74 +806,90 @@ export class EventsService {
       throw new NotFoundException("Plant not found");
     }
 
-    const mapping = registry
-      ? (registry.mapping as unknown as Record<string, MappingEntry | string>)
-      : null;
-    const patch: Record<string, unknown> = {};
-
-    if (mapping) {
-      for (const [payloadKey, rawEntry] of Object.entries(mapping)) {
-        const entry: MappingEntry =
-          typeof rawEntry === "string"
-            ? { currentKey: rawEntry, is_state_field: true }
-            : (rawEntry as MappingEntry);
-
-        if (!entry.is_state_field) {
-          continue;
-        }
-
-        const value = getValueAtPayloadPath(payload, payloadKey);
-        if (value !== undefined) {
-          patch[entry.currentKey] = value;
-        }
-      }
+    if (this.syncProjectorEnabled || this.projectionOnlyMode) {
+      await this.plantProjector.projectEventToPlantCurrent(createdEvent);
     }
 
-    const watering = getValueAtPayloadPath(payload, "watering");
-    if (isPlainObject(watering)) {
-      patch.last_watered_at = createdEvent.timestamp.toISOString();
+    const updatedPlant = await this.prisma.plant.findUnique({
+      where: { id: params.plantId },
+    });
+    return updatedPlant ?? plant;
+  }
 
-      const nutrient = getValueAtPayloadPath(watering, "nutrient");
-      const drainage = getValueAtPayloadPath(watering, "drainage");
+  private buildRegistryVersion(registry: { id: string; updatedAt: Date }): string {
+    return `${registry.id}:${registry.updatedAt.toISOString()}`;
+  }
 
-      const ph =
-        (typeof getValueAtPayloadPath(nutrient, "ph") === "number"
-          ? (getValueAtPayloadPath(nutrient, "ph") as number)
-          : undefined) ??
-        (typeof getValueAtPayloadPath(drainage, "ph") === "number"
-          ? (getValueAtPayloadPath(drainage, "ph") as number)
-          : undefined);
-      const ppm =
-        (typeof getValueAtPayloadPath(nutrient, "ppm") === "number"
-          ? (getValueAtPayloadPath(nutrient, "ppm") as number)
-          : undefined) ??
-        (typeof getValueAtPayloadPath(drainage, "ppm") === "number"
-          ? (getValueAtPayloadPath(drainage, "ppm") as number)
-          : undefined);
-
-      if (ph !== undefined) {
-        patch.last_ph = ph;
-      }
-      if (ppm !== undefined) {
-        patch.last_ppm = ppm;
-      }
+  private extractPayloadSchemaVersion(schema: unknown): string | null {
+    if (!isPlainObject(schema)) {
+      return null;
     }
+    const version = schema.version;
+    return typeof version === "string" && version.trim() ? version : "v1";
+  }
 
-    if (Object.keys(patch).length === 0) {
-      return plant;
-    }
+  async replayPlantStateAt(plantId: string, asOf: Date): Promise<JsonObject> {
+    const snapshot = await (this.prisma as any).plantSnapshot.findFirst({
+      where: {
+        plantId,
+        asOfTimestamp: { lte: asOf },
+      },
+      orderBy: { asOfTimestamp: "desc" },
+    });
 
-    const current = (plant.current as Record<string, unknown> | null) ?? {};
-    const updatedCurrent = {
-      ...current,
-      ...patch,
+    const initialState = ((snapshot?.state as JsonObject | undefined) ?? {}) as JsonObject;
+    const where: Prisma.EventWhereInput = {
+      targetType: "Plant",
+      targetId: plantId,
+      timestamp: { lte: asOf },
+      ...(snapshot
+        ? { timestamp: { gt: snapshot.asOfTimestamp, lte: asOf } }
+        : {}),
     };
 
+    const events = (await this.prisma.event.findMany({
+      where,
+      orderBy: [{ timestamp: "asc" }, { id: "asc" }],
+    })) as unknown as RuntimeEvent[];
+
+    let state = initialState;
+    for (const event of events) {
+      state = this.plantProjector.applyEventToState(state, event);
+    }
+    return state;
+  }
+
+  async createPlantSnapshot(params: { plantId: string; asOf?: Date }): Promise<boolean> {
+    const asOf = params.asOf ?? new Date();
+    const state = await this.replayPlantStateAt(params.plantId, asOf);
+    const latestEvent = await this.prisma.event.findFirst({
+      where: {
+        targetType: "Plant",
+        targetId: params.plantId,
+        timestamp: { lte: asOf },
+      },
+      orderBy: [{ timestamp: "desc" }, { id: "desc" }],
+    });
+
+    await (this.prisma as any).plantSnapshot.create({
+      data: {
+        plantId: params.plantId,
+        asOfEventId: latestEvent?.id ?? null,
+        asOfTimestamp: asOf,
+        projectorVersion: PlantProjectorService.PROJECTOR_VERSION,
+        state: state as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    return true;
+  }
+
+  async rebuildPlantProjection(params: { plantId: string; asOf?: Date }) {
+    const asOf = params.asOf ?? new Date();
+    const state = await this.replayPlantStateAt(params.plantId, asOf);
     return this.prisma.plant.update({
       where: { id: params.plantId },
-      data: {
-        current: updatedCurrent as unknown as Prisma.InputJsonValue,
-      },
+      data: { current: state as unknown as Prisma.InputJsonValue },
     });
   }
 }

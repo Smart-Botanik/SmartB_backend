@@ -161,4 +161,26 @@ export class EventsResolver {
       payloadJson,
     });
   }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("rebuildPlantProjection")
+  rebuildPlantProjection(
+    @Context("req") _req: GqlRequest,
+    @Args("plantId") plantId: string,
+    @Args("asOf", { nullable: true }) asOf?: Date,
+  ) {
+    return this.eventsService.rebuildPlantProjection({ plantId, asOf });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("createPlantSnapshot")
+  createPlantSnapshot(
+    @Context("req") _req: GqlRequest,
+    @Args("plantId") plantId: string,
+    @Args("asOf", { nullable: true }) asOf?: Date,
+  ) {
+    return this.eventsService.createPlantSnapshot({ plantId, asOf });
+  }
 }

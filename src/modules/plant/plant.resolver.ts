@@ -11,6 +11,7 @@ import {
 import type { Request } from "express";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
+import { EventsService } from "../events/events.service";
 import { locationGraphqlInclude } from "../locations/locations.service";
 import { PlantService } from "./plant.service";
 
@@ -29,6 +30,7 @@ export class PlantResolver {
   constructor(
     private readonly plantService: PlantService,
     private readonly prisma: PrismaService,
+    private readonly eventsService: EventsService,
   ) {}
 
   @UseGuards(GqlJwtAuthGuard)
@@ -47,6 +49,22 @@ export class PlantResolver {
   plant(@Context("req") req: GqlRequest, @Args("id") id: string) {
     const userId = getUserIdFromReq(req);
     return this.plantService.getById({ userId, id });
+  }
+
+  @UseGuards(GqlJwtAuthGuard)
+  @Query("plantAt")
+  async plantAt(
+    @Context("req") req: GqlRequest,
+    @Args("id") id: string,
+    @Args("asOf") asOf: Date,
+  ) {
+    const userId = getUserIdFromReq(req);
+    const plant = await this.plantService.getById({ userId, id });
+    const replayedState = await this.eventsService.replayPlantStateAt(id, asOf);
+    return {
+      ...plant,
+      current: replayedState,
+    };
   }
 
   @UseGuards(GqlJwtAuthGuard)
