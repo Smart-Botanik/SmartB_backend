@@ -54,7 +54,21 @@ async function main() {
     }),
   };
 
-  const service = new EventsService(fakePrisma as any, fakeProjector as any);
+  const fakeLocationProjector = {
+    applyEventToState: (
+      state: Record<string, unknown>,
+      event: { payload: Record<string, unknown> },
+    ) => ({
+      ...state,
+      ...event.payload,
+    }),
+  };
+
+  const service = new EventsService(
+    fakePrisma as any,
+    fakeProjector as any,
+    fakeLocationProjector as any,
+  );
   const first = await service.replayPlantStateAt(plantId, asOf);
   const second = await service.replayPlantStateAt(plantId, asOf);
 

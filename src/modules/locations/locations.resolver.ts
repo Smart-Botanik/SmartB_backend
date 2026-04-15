@@ -10,6 +10,7 @@ import { Role } from "@growing/contracts";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
+import { EventsService } from "../events/events.service";
 import type { LocationSpecBlockInput } from "./locations.service";
 import { LocationsService } from "./locations.service";
 
@@ -25,7 +26,10 @@ function getUserIdFromReq(req: GqlRequest): string {
 
 @Resolver("Location")
 export class LocationsResolver {
-  constructor(private readonly locationsService: LocationsService) {}
+  constructor(
+    private readonly locationsService: LocationsService,
+    private readonly eventsService: EventsService,
+  ) {}
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.USER, Role.ADMIN)
@@ -45,6 +49,23 @@ export class LocationsResolver {
   location(@Context("req") req: GqlRequest, @Args("id") id: string) {
     const userId = getUserIdFromReq(req);
     return this.locationsService.getById({ userId, id });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.USER, Role.ADMIN)
+  @Query("locationAt")
+  async locationAt(
+    @Context("req") req: GqlRequest,
+    @Args("id") id: string,
+    @Args("asOf") asOf: Date,
+  ) {
+    const userId = getUserIdFromReq(req);
+    const location = await this.locationsService.getById({ userId, id });
+    const replayedState = await this.eventsService.replayLocationStateAt(id, asOf);
+    return {
+      ...location,
+      current: replayedState,
+    };
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)

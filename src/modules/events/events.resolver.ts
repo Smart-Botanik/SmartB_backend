@@ -164,6 +164,22 @@ export class EventsResolver {
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.ADMIN)
+  @Mutation("createLocationEvent")
+  createLocationEvent(
+    @Context("req") _req: GqlRequest,
+    @Args("locationId") locationId: string,
+    @Args("actionPath") actionPath: string,
+    @Args("payloadJson") payloadJson: string,
+  ) {
+    return this.eventsService.createLocationEvent({
+      locationId,
+      actionPath,
+      payloadJson,
+    });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Mutation("rebuildPlantProjection")
   rebuildPlantProjection(
     @Context("req") _req: GqlRequest,
@@ -182,5 +198,27 @@ export class EventsResolver {
     @Args("asOf", { nullable: true }) asOf?: Date,
   ) {
     return this.eventsService.createPlantSnapshot({ plantId, asOf });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("rebuildLocationProjection")
+  rebuildLocationProjection(
+    @Context("req") _req: GqlRequest,
+    @Args("locationId") locationId: string,
+    @Args("asOf", { nullable: true }) asOf?: Date,
+  ) {
+    return this.eventsService.rebuildLocationProjection({ locationId, asOf });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("createLocationSnapshot")
+  createLocationSnapshot(
+    @Context("req") _req: GqlRequest,
+    @Args("locationId") locationId: string,
+    @Args("asOf", { nullable: true }) asOf?: Date,
+  ) {
+    return this.eventsService.createLocationSnapshot({ locationId, asOf });
   }
 }

@@ -6,6 +6,7 @@ import {
 import { Prisma } from "@prisma/client";
 import { validateAutoTagRulesInput } from "@growing/contracts";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { LocationProjectorService } from "./location-projector.service";
 import { PlantProjectorService } from "./plant-projector.service";
 
 type JsonObject = Record<string, unknown>;
@@ -368,6 +369,7 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly plantProjector: PlantProjectorService,
+    private readonly locationProjector: LocationProjectorService,
   ) {}
 
   async listRegistryGroups() {
@@ -816,6 +818,73 @@ export class EventsService {
     return updatedPlant ?? plant;
   }
 
+  async createLocationEvent(params: {
+    locationId: string;
+    actionPath: string;
+    payloadJson: string;
+    isSystem?: boolean;
+  }) {
+    const payload = parseJsonObject(
+      params.payloadJson,
+      "Invalid payloadJson: expected JSON object",
+    );
+
+    const registry = await this.prisma.actionPathRegistry.findUnique({
+      where: { actionPath: params.actionPath },
+    });
+
+    if (registry && registry.targetType !== "Location") {
+      throw new BadRequestException(
+        `Registry targetType mismatch for actionPath=${params.actionPath}`,
+      );
+    }
+
+    validatePayloadAgainstSchema({
+      payload,
+      schema: (registry as unknown as { schema?: unknown } | null)?.schema,
+      actionPath: params.actionPath,
+    });
+
+    const createdEvent = (await this.prisma.event.create({
+      data: {
+        actionPath: params.actionPath,
+        targetType: "Location",
+        targetId: params.locationId,
+        payload: payload as unknown as Prisma.InputJsonValue,
+        registryVersion: registry ? this.buildRegistryVersion(registry) : null,
+        registrySnapshot: registry
+          ? ({
+              mapping: registry.mapping,
+              schema: registry.schema ?? null,
+              targetType: registry.targetType,
+              actionPath: registry.actionPath,
+            } as unknown as Prisma.InputJsonValue)
+          : null,
+        payloadSchemaVersion: this.extractPayloadSchemaVersion(
+          (registry as unknown as { schema?: unknown } | null)?.schema,
+        ),
+        handlerVersion: LocationProjectorService.HANDLER_VERSION,
+        isSystem: params.isSystem ?? false,
+      } as any,
+    })) as unknown as RuntimeEvent;
+
+    const location = await this.prisma.location.findUnique({
+      where: { id: params.locationId },
+    });
+    if (!location) {
+      throw new NotFoundException("Location not found");
+    }
+
+    if (this.syncProjectorEnabled || this.projectionOnlyMode) {
+      await this.locationProjector.projectEventToLocationCurrent(createdEvent);
+    }
+
+    const updatedLocation = await this.prisma.location.findUnique({
+      where: { id: params.locationId },
+    });
+    return updatedLocation ?? location;
+  }
+
   private buildRegistryVersion(registry: { id: string; updatedAt: Date }): string {
     return `${registry.id}:${registry.updatedAt.toISOString()}`;
   }
@@ -889,6 +958,81 @@ export class EventsService {
     const state = await this.replayPlantStateAt(params.plantId, asOf);
     return this.prisma.plant.update({
       where: { id: params.plantId },
+      data: { current: state as unknown as Prisma.InputJsonValue },
+    });
+  }
+
+  async replayLocationStateAt(
+    locationId: string,
+    asOf: Date,
+  ): Promise<JsonObject> {
+    const snapshot = await (this.prisma as any).locationSnapshot.findFirst({
+      where: {
+        locationId,
+        asOfTimestamp: { lte: asOf },
+      },
+      orderBy: { asOfTimestamp: "desc" },
+    });
+
+    const initialState = ((snapshot?.state as JsonObject | undefined) ??
+      {}) as JsonObject;
+    const where: Prisma.EventWhereInput = {
+      targetType: "Location",
+      targetId: locationId,
+      timestamp: { lte: asOf },
+      ...(snapshot
+        ? { timestamp: { gt: snapshot.asOfTimestamp, lte: asOf } }
+        : {}),
+    };
+
+    const events = (await this.prisma.event.findMany({
+      where,
+      orderBy: [{ timestamp: "asc" }, { id: "asc" }],
+    })) as unknown as RuntimeEvent[];
+
+    let state = initialState;
+    for (const event of events) {
+      state = this.locationProjector.applyEventToState(state, event);
+    }
+    return state;
+  }
+
+  async createLocationSnapshot(params: {
+    locationId: string;
+    asOf?: Date;
+  }): Promise<boolean> {
+    const asOf = params.asOf ?? new Date();
+    const state = await this.replayLocationStateAt(params.locationId, asOf);
+    const latestEvent = await this.prisma.event.findFirst({
+      where: {
+        targetType: "Location",
+        targetId: params.locationId,
+        timestamp: { lte: asOf },
+      },
+      orderBy: [{ timestamp: "desc" }, { id: "desc" }],
+    });
+
+    await (this.prisma as any).locationSnapshot.create({
+      data: {
+        locationId: params.locationId,
+        asOfEventId: latestEvent?.id ?? null,
+        asOfTimestamp: asOf,
+        projectorVersion: LocationProjectorService.PROJECTOR_VERSION,
+        state: state as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    return true;
+  }
+
+  async rebuildLocationProjection(params: {
+    locationId: string;
+    asOf?: Date;
+  }) {
+    const asOf = params.asOf ?? new Date();
+    const state = await this.replayLocationStateAt(params.locationId, asOf);
+    return this.prisma.location.update({
+      where: { id: params.locationId },
       data: { current: state as unknown as Prisma.InputJsonValue },
     });
   }

@@ -270,6 +270,7 @@ model Location {
   userId        String
   name          String
   status        LocationStatus        @default(active)
+  current       Json?
   type          LocationType?
   subType       LocationSubType?
   wateringType  LocationWateringType?
@@ -286,6 +287,27 @@ model Location {
 
   @@index([userId])
   @@index([userId, status])
+}
+
+model LocationProjectionCheckpoint {
+  id         String   @id @default(cuid())
+  locationId String
+  eventId    String   @unique
+  createdAt  DateTime @default(now())
+
+  @@index([locationId, createdAt])
+}
+
+model LocationSnapshot {
+  id               String   @id @default(cuid())
+  locationId       String
+  asOfEventId      String?
+  asOfTimestamp    DateTime
+  projectorVersion String
+  state            Json
+  createdAt        DateTime @default(now())
+
+  @@index([locationId, asOfTimestamp])
 }
 
 /// Упорядоченный список блоков specs (аналог Strapi dynamic zone)

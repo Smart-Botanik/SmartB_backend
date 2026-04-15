@@ -115,7 +115,21 @@ async function main() {
     }),
   };
 
-  const service = new EventsService(fakePrisma as any, fakeProjector as any);
+  const fakeLocationProjector = {
+    applyEventToState: (
+      state: Record<string, unknown>,
+      event: { payload: Record<string, unknown> },
+    ) => ({
+      ...state,
+      ...event.payload,
+    }),
+  };
+
+  const service = new EventsService(
+    fakePrisma as any,
+    fakeProjector as any,
+    fakeLocationProjector as any,
+  );
   const state = await service.replayPlantStateAt(plantId, asOf);
 
   assert(capturedWhere !== undefined, "Expected replay query to be executed");
