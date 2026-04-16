@@ -82,10 +82,15 @@ export class PlantResolver {
   updatePlant(
     @Context("req") req: GqlRequest,
     @Args("id") id: string,
-    @Args("input") input: { name?: string | null },
+    @Args("input") input: { name?: string | null; diaryId?: string | null },
   ) {
     const userId = getUserIdFromReq(req);
-    return this.plantService.update({ userId, id, name: input.name });
+    return this.plantService.update({
+      userId,
+      id,
+      name: input.name,
+      diaryId: input.diaryId,
+    });
   }
 
   @UseGuards(GqlJwtAuthGuard)

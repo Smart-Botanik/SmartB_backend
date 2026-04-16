@@ -885,7 +885,10 @@ export class EventsService {
     return updatedLocation ?? location;
   }
 
-  private buildRegistryVersion(registry: { id: string; updatedAt: Date }): string {
+  private buildRegistryVersion(registry: {
+    id: string;
+    updatedAt: Date;
+  }): string {
     return `${registry.id}:${registry.updatedAt.toISOString()}`;
   }
 
@@ -906,7 +909,8 @@ export class EventsService {
       orderBy: { asOfTimestamp: "desc" },
     });
 
-    const initialState = ((snapshot?.state as JsonObject | undefined) ?? {}) as JsonObject;
+    const initialState = ((snapshot?.state as JsonObject | undefined) ??
+      {}) as JsonObject;
     const where: Prisma.EventWhereInput = {
       targetType: "Plant",
       targetId: plantId,
@@ -928,7 +932,10 @@ export class EventsService {
     return state;
   }
 
-  async createPlantSnapshot(params: { plantId: string; asOf?: Date }): Promise<boolean> {
+  async createPlantSnapshot(params: {
+    plantId: string;
+    asOf?: Date;
+  }): Promise<boolean> {
     const asOf = params.asOf ?? new Date();
     const state = await this.replayPlantStateAt(params.plantId, asOf);
     const latestEvent = await this.prisma.event.findFirst({
@@ -1025,10 +1032,7 @@ export class EventsService {
     return true;
   }
 
-  async rebuildLocationProjection(params: {
-    locationId: string;
-    asOf?: Date;
-  }) {
+  async rebuildLocationProjection(params: { locationId: string; asOf?: Date }) {
     const asOf = params.asOf ?? new Date();
     const state = await this.replayLocationStateAt(params.locationId, asOf);
     return this.prisma.location.update({
