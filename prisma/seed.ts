@@ -41,7 +41,7 @@ async function main() {
       email: "moderator@growingapp.com",
       username: "moderator",
       passwordHash: moderatorPassword,
-      role: "MODERATOR",
+      role: "USER",
     },
   });
 
@@ -121,6 +121,43 @@ async function main() {
   const seedScope = process.env.REGISTRY_SEED_SCOPE === "mvp" ? "mvp" : "full";
   const registrySeedResult = await seedActionPathRegistry(prisma, seedScope);
   console.log("Seeded action path registry:", registrySeedResult);
+
+  await Promise.all([
+    prisma.primitive.upsert({
+      where: { key: "ph" },
+      update: {},
+      create: {
+        key: "ph",
+        name: "pH",
+        valueType: "number",
+        unit: "pH",
+        validation: { min: 0, max: 14, precision: 2 },
+      },
+    }),
+    prisma.primitive.upsert({
+      where: { key: "ppm" },
+      update: {},
+      create: {
+        key: "ppm",
+        name: "PPM",
+        valueType: "number",
+        unit: "ppm",
+        validation: { min: 0, precision: 0 },
+      },
+    }),
+    prisma.primitive.upsert({
+      where: { key: "temperature" },
+      update: {},
+      create: {
+        key: "temperature",
+        name: "Temperature",
+        valueType: "number",
+        unit: "C",
+        validation: { min: -50, max: 120, precision: 2 },
+      },
+    }),
+  ]);
+  console.log("Seeded primitives: ph, ppm, temperature");
 
   console.log("Seeding finished.");
 }
