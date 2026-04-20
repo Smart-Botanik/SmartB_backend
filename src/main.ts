@@ -7,10 +7,31 @@ import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
+  const nodeEnv = configService.get<string>("NODE_ENV") ?? "development";
 
-  // Enable CORS for frontend
+  // Allow local frontend origins (localhost, 127.0.0.1 and LAN IPs in dev).
   app.enableCors({
-    origin: ["http://localhost:5173", "http://localhost:5174"],
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const isLocalhost =
+        /^https?:\/\/localhost(?::\d+)?$/i.test(origin) ||
+        /^https?:\/\/127\.0\.0\.1(?::\d+)?$/i.test(origin);
+      const isLanDev = /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(?::\d+)?$/i.test(
+        origin,
+      );
+
+      if (isLocalhost || (nodeEnv !== "production" && isLanDev)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`), false);
+    },
     credentials: true,
   });
 
@@ -30,7 +51,6 @@ async function bootstrap() {
     }),
   );
 
-  const configService = app.get(ConfigService);
   const port = configService.get<number>("PORT") ?? 3001;
 
   const swaggerConfig = new DocumentBuilder()
