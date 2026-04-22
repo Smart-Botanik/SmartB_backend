@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { validateAutoTagRulesInput } from "@growing/contracts";
+import { Role, validateAutoTagRulesInput } from "@growing/contracts";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { LocationProjectorService } from "./location-projector.service";
 import { PlantProjectorService } from "./plant-projector.service";
@@ -752,11 +753,23 @@ export class EventsService {
   }
 
   async createPlantEvent(params: {
+    userId: string;
+    userRole: Role;
     plantId: string;
     actionPath: string;
     payloadJson: string;
     isSystem?: boolean;
   }) {
+    const plant = await this.prisma.plant.findUnique({
+      where: { id: params.plantId },
+    });
+    if (!plant) {
+      throw new NotFoundException("Plant not found");
+    }
+    if (plant.userId !== params.userId && params.userRole !== Role.ADMIN) {
+      throw new ForbiddenException("Plant does not belong to the current user");
+    }
+
     const payload = parseJsonObject(
       params.payloadJson,
       "Invalid payloadJson: expected JSON object",
@@ -800,13 +813,6 @@ export class EventsService {
         isSystem: params.isSystem ?? false,
       } as any,
     })) as unknown as RuntimeEvent;
-
-    const plant = await this.prisma.plant.findUnique({
-      where: { id: params.plantId },
-    });
-    if (!plant) {
-      throw new NotFoundException("Plant not found");
-    }
 
     if (this.syncProjectorEnabled || this.projectionOnlyMode) {
       await this.plantProjector.projectEventToPlantCurrent(createdEvent);

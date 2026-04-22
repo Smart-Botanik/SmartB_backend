@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcrypt";
 import { seedActionPathRegistry } from "../src/scripts/seed-action-path-registry";
+import { seedRegistryFieldSpecs } from "../src/scripts/seed-registry-field-specs";
 
 const prisma = new PrismaClient();
 
@@ -158,6 +159,9 @@ async function main() {
     }),
   ]);
   console.log("Seeded primitives: ph, ppm, temperature");
+
+  const registryFieldSpecsResult = await seedRegistryFieldSpecs(prisma);
+  console.log("Seeded registry field specs:", registryFieldSpecsResult);
 
   console.log("Seeding finished.");
 }

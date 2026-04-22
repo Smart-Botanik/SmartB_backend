@@ -13,6 +13,7 @@ import { PlantModule } from "./modules/plant/plant.module";
 import { LocationsModule } from "./modules/locations/locations.module";
 import { ProductsModule } from "./modules/products/products.module";
 import { PrimitivesModule } from "./modules/primitives/primitives.module";
+import { RegistryModule } from "./modules/registry/registry.module";
 import { TagsModule } from "./modules/tags/tags.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./infrastructure/prisma/prisma.module";
@@ -50,6 +51,7 @@ import { HealthModule } from "./health/health.module";
     BrandsModule,
     ProductsModule,
     PrimitivesModule,
+    RegistryModule,
     LocationsModule,
     TagsModule,
   ],

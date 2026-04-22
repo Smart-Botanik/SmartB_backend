@@ -79,6 +79,13 @@ export class DiaryResolver {
     return this.diaryService.listLocationsForDiary({ userId, diaryId: diary.id });
   }
 
+  @ResolveField("plantGroups")
+  plantGroups(@Context("req") req: GqlRequest, @Parent() diary: { id?: string }) {
+    const userId = getUserIdFromReq(req);
+    if (!diary?.id) return [];
+    return this.diaryService.listPlantGroups({ userId, diaryId: diary.id });
+  }
+
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.USER, Role.ADMIN)
   @Mutation("updateDiary")

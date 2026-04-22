@@ -7,7 +7,16 @@ import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { EventsService } from "./events.service";
 
-type GqlRequest = Request & { user?: { userId?: string } };
+type GqlRequest = Request & { user?: { userId?: string; role?: Role } };
+
+function getUserContext(req: GqlRequest): { userId: string; role: Role } {
+  const userId = req.user?.userId;
+  const role = req.user?.role;
+  if (!userId || role === undefined) {
+    throw new Error("Missing user in request context");
+  }
+  return { userId, role };
+}
 
 @Resolver()
 export class EventsResolver {
@@ -147,15 +156,18 @@ export class EventsResolver {
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.USER)
   @Mutation("createPlantEvent")
   createPlantEvent(
-    @Context("req") _req: GqlRequest,
+    @Context("req") req: GqlRequest,
     @Args("plantId") plantId: string,
     @Args("actionPath") actionPath: string,
     @Args("payloadJson") payloadJson: string,
   ) {
+    const { userId, role } = getUserContext(req);
     return this.eventsService.createPlantEvent({
+      userId,
+      userRole: role,
       plantId,
       actionPath,
       payloadJson,

@@ -60,6 +60,18 @@ export class DiaryService {
     });
   }
 
+  async listPlantGroups(params: { userId: string; diaryId: string }) {
+    await this.getById({ userId: params.userId, id: params.diaryId });
+
+    return this.prisma.plantGroup.findMany({
+      where: {
+        userId: params.userId,
+        diaryId: params.diaryId,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
   async create(params: {
     userId: string;
     title?: string | null;

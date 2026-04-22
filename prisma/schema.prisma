@@ -191,6 +191,33 @@ enum PrimitiveStatus {
   deprecated
 }
 
+enum RegistryValueType {
+  number
+  string
+  boolean
+  date
+  enum
+  json
+}
+
+enum RegistrySemanticKind {
+  generic
+  ph
+  ppm
+  temperature
+}
+
+enum RegistryProfileKind {
+  event_write
+  timeseries_read
+  snapshot_build
+}
+
+enum RegistryFieldSpecStatus {
+  active
+  deprecated
+}
+
 model Primitive {
   id         String             @id @default(cuid())
   key        String             @unique
@@ -205,6 +232,64 @@ model Primitive {
 
   @@index([status])
   @@index([key])
+}
+
+/// Contract field catalog for Projection/Stream Registry v1 (canonical paths only).
+model RegistryFieldSpec {
+  id               String                  @id @default(cuid())
+  fieldId          String                  @unique
+  entity           String
+  label            String
+  valueType        RegistryValueType
+  semanticKind     RegistrySemanticKind    @default(generic)
+  unit             String?
+  canonicalPath    String
+  required         Boolean                 @default(false)
+  formatJson       Json?
+  constraintsJson  Json?
+  includeInCurrent Boolean                 @default(false)
+  status           RegistryFieldSpecStatus @default(active)
+  version          Int                     @default(1)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  profileFields RegistryProfileField[]
+
+  @@index([entity, status])
+  @@index([fieldId])
+}
+
+/// Named set of selected fields for scenario-specific projection/stream usage.
+model RegistryProfile {
+  id          String              @id @default(cuid())
+  key         String              @unique
+  entity      String
+  kind        RegistryProfileKind
+  title       String
+  description String?
+  version     Int                 @default(1)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  fields RegistryProfileField[]
+
+  @@index([entity, kind, isActive])
+}
+
+/// Field membership within a profile (ordered + required flag).
+model RegistryProfileField {
+  id          String  @id @default(cuid())
+  profileId   String
+  fieldSpecId String
+  position    Int     @default(0)
+  required    Boolean @default(false)
+
+  profile   RegistryProfile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  fieldSpec RegistryFieldSpec @relation(fields: [fieldSpecId], references: [id], onDelete: Restrict)
+
+  @@unique([profileId, fieldSpecId])
+  @@index([profileId, position])
 }
 
 model Diary {

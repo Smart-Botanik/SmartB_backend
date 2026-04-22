@@ -14,6 +14,7 @@
     "db:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts",
     "db:seed:registry": "ts-node src/scripts/seed-action-path-registry.ts",
+    "db:seed:registry:fieldspec": "ts-node src/scripts/seed-registry-field-specs.ts",
     "db:seed:registry:mvp": "set REGISTRY_SEED_SCOPE=mvp&& ts-node src/scripts/seed-action-path-registry.ts",
     "db:seed:registry:full": "set REGISTRY_SEED_SCOPE=full&& ts-node src/scripts/seed-action-path-registry.ts",
     "export:registry-manifest": "ts-node src/scripts/export-registry-manifest.ts",
