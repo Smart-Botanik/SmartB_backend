@@ -23,8 +23,23 @@ type TUpsertRegistryFieldSpecArgs = {
   required?: boolean;
   formatJson?: unknown;
   constraintsJson?: unknown;
+  fieldPatternKey?: string;
   includeInCurrent?: boolean;
   status?: RegistryFieldSpecStatus;
+};
+
+type TUpsertRegistryFieldPatternArgs = {
+  key: string;
+  title: string;
+  valueType: RegistryValueType;
+  semanticKind?: RegistrySemanticKind;
+  canonicalUnit?: string;
+  allowedUnits?: string[];
+  defaultInputUnit?: string;
+  conversionProfile?: string;
+  formatJson?: unknown;
+  constraintsJson?: unknown;
+  isActive?: boolean;
 };
 
 type TUpsertRegistryProfileArgs = {
@@ -63,6 +78,15 @@ export class RegistryResolver {
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.ADMIN)
+  @Query("registryFieldPatterns")
+  registryFieldPatterns(
+    @Args("isActive", { nullable: true }) isActive?: boolean,
+  ) {
+    return this.registryService.listFieldPatterns({ isActive });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Query("registryProfiles")
   registryProfiles(
     @Args("entity", { nullable: true }) entity?: string,
@@ -77,6 +101,27 @@ export class RegistryResolver {
   @Query("registryProfile")
   registryProfile(@Args("key") key: string) {
     return this.registryService.getProfileByKey(key);
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("upsertRegistryFieldPattern")
+  upsertRegistryFieldPattern(
+    @Args("input") input: TUpsertRegistryFieldPatternArgs,
+  ) {
+    return this.registryService.upsertFieldPattern({
+      key: input.key,
+      title: input.title,
+      valueType: input.valueType,
+      semanticKind: input.semanticKind,
+      canonicalUnit: input.canonicalUnit,
+      allowedUnits: input.allowedUnits,
+      defaultInputUnit: input.defaultInputUnit,
+      conversionProfile: input.conversionProfile,
+      formatJson: input.formatJson as never,
+      constraintsJson: input.constraintsJson as never,
+      isActive: input.isActive,
+    });
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
@@ -96,6 +141,7 @@ export class RegistryResolver {
       required: input.required,
       formatJson: input.formatJson as never,
       constraintsJson: input.constraintsJson as never,
+      fieldPatternKey: input.fieldPatternKey,
       includeInCurrent: input.includeInCurrent,
       status: input.status,
     });

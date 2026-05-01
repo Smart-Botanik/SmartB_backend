@@ -2,14 +2,29 @@ import {
   Prisma,
   PrismaClient,
   RegistryProfileKind,
+  RegistrySemanticKind,
   RegistryValueType,
 } from "@prisma/client";
+
+type TPatternSeed = {
+  key: string;
+  title: string;
+  valueType: RegistryValueType;
+  semanticKind: RegistrySemanticKind;
+  canonicalUnit?: string;
+  allowedUnits?: string[];
+  defaultInputUnit?: string;
+  conversionProfile?: string;
+  formatJson?: Record<string, unknown>;
+  constraintsJson?: Record<string, unknown>;
+};
 
 type TFieldSeed = {
   fieldId: string;
   label: string;
   canonicalPath: string;
-  semanticKind: "ph" | "ppm" | "temperature" | "generic";
+  semanticKind: RegistrySemanticKind;
+  patternKey?: string;
   unit?: string;
   required?: boolean;
   includeInCurrent?: boolean;
@@ -17,12 +32,50 @@ type TFieldSeed = {
   constraintsJson?: Record<string, unknown>;
 };
 
+const FIELD_PATTERNS: TPatternSeed[] = [
+  {
+    key: "ph.decimal.v1",
+    title: "pH decimal",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.ph,
+    canonicalUnit: "pH",
+    allowedUnits: ["pH"],
+    defaultInputUnit: "pH",
+    formatJson: { mode: "decimal", precision: 1, step: 0.1 },
+    constraintsJson: { min: 0, max: 14 },
+  },
+  {
+    key: "ppm.integer.v1",
+    title: "PPM integer",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.ppm,
+    canonicalUnit: "ppm",
+    allowedUnits: ["ppm"],
+    defaultInputUnit: "ppm",
+    formatJson: { mode: "integer", step: 1 },
+    constraintsJson: { min: 0 },
+  },
+  {
+    key: "temperature.decimal.v1",
+    title: "Temperature decimal",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.temperature,
+    canonicalUnit: "C",
+    allowedUnits: ["C", "F"],
+    defaultInputUnit: "C",
+    conversionProfile: "temperature_c_f",
+    formatJson: { mode: "decimal", precision: 1, step: 0.1 },
+    constraintsJson: { min: -50, max: 120 },
+  },
+];
+
 const PLANT_FIELD_SPECS: TFieldSeed[] = [
   {
     fieldId: "plant.solution.ph",
     label: "Solution pH",
     canonicalPath: "solution.ph",
-    semanticKind: "ph",
+    semanticKind: RegistrySemanticKind.ph,
+    patternKey: "ph.decimal.v1",
     unit: "pH",
     required: true,
     includeInCurrent: true,
@@ -33,7 +86,8 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
     fieldId: "plant.solution.ppm",
     label: "Solution PPM",
     canonicalPath: "solution.ppm",
-    semanticKind: "ppm",
+    semanticKind: RegistrySemanticKind.ppm,
+    patternKey: "ppm.integer.v1",
     unit: "ppm",
     required: false,
     includeInCurrent: true,
@@ -44,7 +98,8 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
     fieldId: "plant.drainage.ph",
     label: "Drainage pH",
     canonicalPath: "drainage.ph",
-    semanticKind: "ph",
+    semanticKind: RegistrySemanticKind.ph,
+    patternKey: "ph.decimal.v1",
     unit: "pH",
     required: false,
     includeInCurrent: true,
@@ -66,12 +121,51 @@ const toInputJsonValue = (
 };
 
 export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
+  patterns: number;
   fields: number;
   profileKey: string;
 }> {
+  for (const pattern of FIELD_PATTERNS) {
+    await prisma.registryFieldPattern.upsert({
+      where: { key: pattern.key },
+      create: {
+        key: pattern.key,
+        title: pattern.title,
+        valueType: pattern.valueType,
+        semanticKind: pattern.semanticKind,
+        canonicalUnit: pattern.canonicalUnit,
+        allowedUnitsJson: pattern.allowedUnits as Prisma.InputJsonValue,
+        defaultInputUnit: pattern.defaultInputUnit,
+        conversionProfile: pattern.conversionProfile,
+        formatJson: toInputJsonValue(pattern.formatJson),
+        constraintsJson: toInputJsonValue(pattern.constraintsJson),
+        isActive: true,
+      },
+      update: {
+        title: pattern.title,
+        valueType: pattern.valueType,
+        semanticKind: pattern.semanticKind,
+        canonicalUnit: pattern.canonicalUnit,
+        allowedUnitsJson: pattern.allowedUnits as Prisma.InputJsonValue,
+        defaultInputUnit: pattern.defaultInputUnit,
+        conversionProfile: pattern.conversionProfile,
+        formatJson: toInputJsonValue(pattern.formatJson),
+        constraintsJson: toInputJsonValue(pattern.constraintsJson),
+        isActive: true,
+      },
+    });
+  }
+
   const fieldIds: string[] = [];
 
   for (const field of PLANT_FIELD_SPECS) {
+    const pattern = field.patternKey
+      ? await prisma.registryFieldPattern.findUnique({
+          where: { key: field.patternKey },
+          select: { id: true },
+        })
+      : null;
+
     const saved = await prisma.registryFieldSpec.upsert({
       where: { fieldId: field.fieldId },
       create: {
@@ -86,6 +180,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
         includeInCurrent: field.includeInCurrent ?? false,
         formatJson: toInputJsonValue(field.formatJson),
         constraintsJson: toInputJsonValue(field.constraintsJson),
+        fieldPatternId: pattern?.id,
       },
       update: {
         label: field.label,
@@ -96,6 +191,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
         includeInCurrent: field.includeInCurrent ?? false,
         formatJson: toInputJsonValue(field.formatJson),
         constraintsJson: toInputJsonValue(field.constraintsJson),
+        fieldPatternId: pattern?.id,
       },
       select: { id: true, fieldId: true },
     });
@@ -139,6 +235,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
   });
 
   return {
+    patterns: FIELD_PATTERNS.length,
     fields: PLANT_FIELD_SPECS.length,
     profileKey: WATERING_EVENT_PROFILE_KEY,
   };
@@ -150,7 +247,7 @@ async function runCli(): Promise<void> {
   try {
     const result = await seedRegistryFieldSpecs(prisma);
     console.log(
-      `Registry field specs seed completed: fields=${result.fields}, profile=${result.profileKey}`,
+      `Registry field specs seed completed: patterns=${result.patterns}, fields=${result.fields}, profile=${result.profileKey}`,
     );
   } finally {
     await prisma.$disconnect();

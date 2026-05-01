@@ -19,8 +19,23 @@ type TUpsertRegistryFieldSpecInput = {
   required?: boolean | null;
   formatJson?: Prisma.InputJsonValue | null;
   constraintsJson?: Prisma.InputJsonValue | null;
+  fieldPatternKey?: string | null;
   includeInCurrent?: boolean | null;
   status?: RegistryFieldSpecStatus | null;
+};
+
+type TUpsertRegistryFieldPatternInput = {
+  key: string;
+  title: string;
+  valueType: RegistryValueType;
+  semanticKind?: RegistrySemanticKind | null;
+  canonicalUnit?: string | null;
+  allowedUnits?: string[] | null;
+  defaultInputUnit?: string | null;
+  conversionProfile?: string | null;
+  formatJson?: Prisma.InputJsonValue | null;
+  constraintsJson?: Prisma.InputJsonValue | null;
+  isActive?: boolean | null;
 };
 
 type TUpsertRegistryProfileInput = {
@@ -42,6 +57,21 @@ type TSetRegistryProfileFieldsInput = {
 export class RegistryService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async listFieldPatterns(params?: { isActive?: boolean }) {
+    return this.prisma.registryFieldPattern.findMany({
+      where: {
+        isActive:
+          typeof params?.isActive === "boolean" ? params.isActive : undefined,
+      },
+      orderBy: [{ key: "asc" }],
+    }).then(rows =>
+      rows.map(row => ({
+        ...row,
+        allowedUnits: this.asStringArray(row.allowedUnitsJson),
+      })),
+    );
+  }
+
   async listFieldSpecs(params?: {
     entity?: string;
     status?: RegistryFieldSpecStatus;
@@ -51,8 +81,16 @@ export class RegistryService {
         entity: params?.entity?.trim() || undefined,
         status: params?.status ?? undefined,
       },
+      include: {
+        fieldPattern: { select: { key: true } },
+      },
       orderBy: [{ entity: "asc" }, { fieldId: "asc" }],
-    });
+    }).then(rows =>
+      rows.map(row => ({
+        ...row,
+        fieldPatternKey: row.fieldPattern?.key ?? null,
+      })),
+    );
   }
 
   async listProfiles(params?: {
@@ -101,6 +139,55 @@ export class RegistryService {
     return this.mapProfile(row);
   }
 
+  async upsertFieldPattern(input: TUpsertRegistryFieldPatternInput) {
+    const key = input.key.trim();
+    const title = input.title.trim();
+    this.validateFieldPatternKey(key);
+    if (!title.length) throw new BadRequestException("title is required");
+    const canonicalUnit = input.canonicalUnit?.trim() || null;
+    const allowedUnits = [...new Set((input.allowedUnits ?? []).map(u => u.trim()).filter(Boolean))];
+    const defaultInputUnit = input.defaultInputUnit?.trim() || null;
+    if (canonicalUnit && allowedUnits.length && !allowedUnits.includes(canonicalUnit)) {
+      throw new BadRequestException("canonicalUnit must belong to allowedUnits");
+    }
+    if (defaultInputUnit && canonicalUnit && !allowedUnits.includes(defaultInputUnit) && defaultInputUnit !== canonicalUnit) {
+      throw new BadRequestException("defaultInputUnit must belong to allowedUnits or match canonicalUnit");
+    }
+
+    return this.prisma.registryFieldPattern.upsert({
+      where: { key },
+      create: {
+        key,
+        title,
+        valueType: input.valueType,
+        semanticKind: input.semanticKind ?? RegistrySemanticKind.generic,
+        canonicalUnit,
+        allowedUnitsJson: allowedUnits.length ? (allowedUnits as unknown as Prisma.InputJsonValue) : undefined,
+        defaultInputUnit,
+        conversionProfile: input.conversionProfile?.trim() || null,
+        formatJson: input.formatJson ?? undefined,
+        constraintsJson: input.constraintsJson ?? undefined,
+        isActive: input.isActive ?? true,
+      },
+      update: {
+        title,
+        valueType: input.valueType,
+        semanticKind: input.semanticKind ?? RegistrySemanticKind.generic,
+        canonicalUnit,
+        allowedUnitsJson: allowedUnits.length ? (allowedUnits as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+        defaultInputUnit,
+        conversionProfile: input.conversionProfile?.trim() || null,
+        formatJson: input.formatJson === null ? Prisma.JsonNull : input.formatJson ?? undefined,
+        constraintsJson: input.constraintsJson === null ? Prisma.JsonNull : input.constraintsJson ?? undefined,
+        isActive: input.isActive ?? true,
+        version: { increment: 1 },
+      },
+    }).then(row => ({
+      ...row,
+      allowedUnits: this.asStringArray(row.allowedUnitsJson),
+    }));
+  }
+
   async upsertFieldSpec(input: TUpsertRegistryFieldSpecInput) {
     const fieldId = input.fieldId.trim();
     const entity = input.entity.trim();
@@ -112,41 +199,61 @@ export class RegistryService {
     if (!entity.length) throw new BadRequestException("entity is required");
     if (!label.length) throw new BadRequestException("label is required");
 
+    const patternKey = input.fieldPatternKey?.trim() || null;
+    const pattern = patternKey
+      ? await this.prisma.registryFieldPattern.findUnique({ where: { key: patternKey } })
+      : null;
+    if (patternKey && !pattern) {
+      throw new BadRequestException(`Unknown fieldPatternKey: ${patternKey}`);
+    }
+
     return this.prisma.registryFieldSpec.upsert({
       where: { fieldId },
       create: {
         fieldId,
         entity,
         label,
-        valueType: input.valueType,
-        semanticKind: input.semanticKind ?? RegistrySemanticKind.generic,
-        unit: input.unit?.trim() || null,
+        valueType: pattern?.valueType ?? input.valueType,
+        semanticKind: pattern?.semanticKind ?? input.semanticKind ?? RegistrySemanticKind.generic,
+        unit: pattern?.canonicalUnit ?? (input.unit?.trim() || null),
         canonicalPath,
         required: input.required ?? false,
-        formatJson: input.formatJson ?? undefined,
-        constraintsJson: input.constraintsJson ?? undefined,
+        formatJson: pattern?.formatJson ?? input.formatJson ?? undefined,
+        constraintsJson: pattern?.constraintsJson ?? input.constraintsJson ?? undefined,
+        fieldPatternId: pattern?.id ?? null,
         includeInCurrent: input.includeInCurrent ?? false,
         status: input.status ?? RegistryFieldSpecStatus.active,
       },
       update: {
         entity,
         label,
-        valueType: input.valueType,
-        semanticKind: input.semanticKind ?? RegistrySemanticKind.generic,
-        unit: input.unit?.trim() || null,
+        valueType: pattern?.valueType ?? input.valueType,
+        semanticKind: pattern?.semanticKind ?? input.semanticKind ?? RegistrySemanticKind.generic,
+        unit: pattern?.canonicalUnit ?? (input.unit?.trim() || null),
         canonicalPath,
         required: input.required ?? false,
-        formatJson:
-          input.formatJson === null ? Prisma.JsonNull : input.formatJson ?? undefined,
-        constraintsJson:
-          input.constraintsJson === null
+        formatJson: pattern
+          ? (pattern.formatJson ?? Prisma.JsonNull)
+          : input.formatJson === null
+            ? Prisma.JsonNull
+            : input.formatJson ?? undefined,
+        constraintsJson: pattern
+          ? (pattern.constraintsJson ?? Prisma.JsonNull)
+          : input.constraintsJson === null
             ? Prisma.JsonNull
             : input.constraintsJson ?? undefined,
+        fieldPatternId: pattern?.id ?? null,
         includeInCurrent: input.includeInCurrent ?? false,
         status: input.status ?? RegistryFieldSpecStatus.active,
         version: { increment: 1 },
       },
-    });
+      include: {
+        fieldPattern: { select: { key: true } },
+      },
+    }).then(row => ({
+      ...row,
+      fieldPatternKey: row.fieldPattern?.key ?? null,
+    }));
   }
 
   async upsertProfile(input: TUpsertRegistryProfileInput) {
@@ -297,11 +404,24 @@ export class RegistryService {
     }
   }
 
+  private validateFieldPatternKey(key: string) {
+    if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(key)) {
+      throw new BadRequestException(
+        "fieldPattern key must be dot-separated keys (e.g. ph.decimal.v1)",
+      );
+    }
+  }
+
   private validateCanonicalPath(path: string) {
     if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(path)) {
       throw new BadRequestException(
         "canonicalPath must be dot-separated keys (e.g. solution.ph)",
       );
     }
+  }
+
+  private asStringArray(payload: Prisma.JsonValue | null): string[] {
+    if (!Array.isArray(payload)) return [];
+    return payload.filter((value): value is string => typeof value === "string");
   }
 }

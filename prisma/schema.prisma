@@ -205,6 +205,8 @@ enum RegistrySemanticKind {
   ph
   ppm
   temperature
+  length
+  concentration
 }
 
 enum RegistryProfileKind {
@@ -234,6 +236,29 @@ model Primitive {
   @@index([key])
 }
 
+model RegistryFieldPattern {
+  id               String               @id @default(cuid())
+  key              String               @unique
+  title            String
+  valueType        RegistryValueType
+  semanticKind     RegistrySemanticKind @default(generic)
+  canonicalUnit    String?
+  allowedUnitsJson Json?
+  defaultInputUnit String?
+  conversionProfile String?
+  formatJson       Json?
+  constraintsJson  Json?
+  isActive         Boolean              @default(true)
+  version          Int                  @default(1)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  fieldSpecs RegistryFieldSpec[]
+
+  @@index([isActive])
+  @@index([key])
+}
+
 /// Contract field catalog for Projection/Stream Registry v1 (canonical paths only).
 model RegistryFieldSpec {
   id               String                  @id @default(cuid())
@@ -247,6 +272,7 @@ model RegistryFieldSpec {
   required         Boolean                 @default(false)
   formatJson       Json?
   constraintsJson  Json?
+  fieldPatternId   String?
   includeInCurrent Boolean                 @default(false)
   status           RegistryFieldSpecStatus @default(active)
   version          Int                     @default(1)
@@ -254,9 +280,11 @@ model RegistryFieldSpec {
   updatedAt        DateTime                @updatedAt
 
   profileFields RegistryProfileField[]
+  fieldPattern  RegistryFieldPattern? @relation(fields: [fieldPatternId], references: [id], onDelete: SetNull)
 
   @@index([entity, status])
   @@index([fieldId])
+  @@index([fieldPatternId])
 }
 
 /// Named set of selected fields for scenario-specific projection/stream usage.
