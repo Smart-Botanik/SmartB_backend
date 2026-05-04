@@ -23,6 +23,7 @@ type TFieldSeed = {
   fieldId: string;
   label: string;
   canonicalPath: string;
+  valueType?: RegistryValueType;
   semanticKind: RegistrySemanticKind;
   patternKey?: string;
   unit?: string;
@@ -106,6 +107,21 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
     formatJson: { mode: "decimal", precision: 1, step: 0.1 },
     constraintsJson: { min: 0, max: 14 },
   },
+  {
+    fieldId: "plant.watering.nutrients",
+    label: "Watering nutrients",
+    canonicalPath: "watering.nutrients",
+    valueType: RegistryValueType.json,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: true,
+    formatJson: {
+      mode: "array",
+      item: "watering.nutrient-item",
+      amountPath: "nutrient_amount.value",
+      productPath: "productId",
+    },
+  },
 ];
 
 const WATERING_EVENT_PROFILE_KEY = "watering.event.v1";
@@ -162,7 +178,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
     const pattern = field.patternKey
       ? await prisma.registryFieldPattern.findUnique({
           where: { key: field.patternKey },
-          select: { id: true },
+          select: { id: true, valueType: true },
         })
       : null;
 
@@ -172,7 +188,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
         fieldId: field.fieldId,
         entity: "Plant",
         label: field.label,
-        valueType: RegistryValueType.number,
+        valueType: pattern?.valueType ?? field.valueType ?? RegistryValueType.number,
         semanticKind: field.semanticKind,
         unit: field.unit,
         canonicalPath: field.canonicalPath,
@@ -184,6 +200,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
       },
       update: {
         label: field.label,
+        valueType: pattern?.valueType ?? field.valueType ?? RegistryValueType.number,
         semanticKind: field.semanticKind,
         unit: field.unit,
         canonicalPath: field.canonicalPath,
