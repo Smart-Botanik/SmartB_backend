@@ -35,6 +35,30 @@ type TFieldSeed = {
 
 const FIELD_PATTERNS: TPatternSeed[] = [
   {
+    key: "reference.string.v1",
+    title: "Reference string",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    formatJson: {
+      mode: "reference",
+      idType: "string",
+    },
+  },
+  {
+    key: "product.reference.v1",
+    title: "Product reference",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    formatJson: {
+      mode: "reference",
+      basePatternKey: "reference.string.v1",
+      entity: "Product",
+      control: "productPicker",
+      idField: "productId",
+      labelField: "product",
+    },
+  },
+  {
     key: "ph.decimal.v1",
     title: "pH decimal",
     valueType: RegistryValueType.number,
@@ -67,6 +91,17 @@ const FIELD_PATTERNS: TPatternSeed[] = [
     conversionProfile: "temperature_c_f",
     formatJson: { mode: "decimal", precision: 1, step: 0.1 },
     constraintsJson: { min: -50, max: 120 },
+  },
+  {
+    key: "nutrient-dose.decimal.v1",
+    title: "Nutrient dose decimal",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.concentration,
+    canonicalUnit: "mll",
+    allowedUnits: ["mll", "mlg", "tspl"],
+    defaultInputUnit: "mll",
+    formatJson: { mode: "decimal", precision: 2, step: 0.1 },
+    constraintsJson: { min: 0 },
   },
 ];
 
@@ -117,9 +152,33 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
     includeInCurrent: true,
     formatJson: {
       mode: "array",
+      componentKey: "watering.nutrient-item.v1",
       item: "watering.nutrient-item",
-      amountPath: "nutrient_amount.value",
-      productPath: "productId",
+      fields: {
+        productId: {
+          patternKey: "product.reference.v1",
+          canonicalPath: "productId",
+          required: true,
+          control: "productPicker",
+          entity: "Product",
+          filters: {
+            category: "NUTRIENT",
+          },
+        },
+        product: {
+          patternKey: "reference.string.v1",
+          canonicalPath: "product",
+          required: false,
+          role: "snapshotLabel",
+        },
+        "nutrient_amount.value": {
+          patternKey: "nutrient-dose.decimal.v1",
+          canonicalPath: "nutrient_amount.value",
+          required: true,
+          control: "doseInput",
+          unitPath: "nutrient_amount.unit",
+        },
+      },
     },
   },
 ];
