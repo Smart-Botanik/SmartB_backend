@@ -107,9 +107,9 @@ const FIELD_PATTERNS: TPatternSeed[] = [
 
 const PLANT_FIELD_SPECS: TFieldSeed[] = [
   {
-    fieldId: "plant.solution.ph",
+    fieldId: "plant.watering.solution.ph",
     label: "Solution pH",
-    canonicalPath: "solution.ph",
+    canonicalPath: "watering.solution.ph",
     semanticKind: RegistrySemanticKind.ph,
     patternKey: "ph.decimal.v1",
     unit: "pH",
@@ -119,9 +119,9 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
     constraintsJson: { min: 0, max: 14 },
   },
   {
-    fieldId: "plant.solution.ppm",
+    fieldId: "plant.watering.solution.ppm",
     label: "Solution PPM",
-    canonicalPath: "solution.ppm",
+    canonicalPath: "watering.solution.ppm",
     semanticKind: RegistrySemanticKind.ppm,
     patternKey: "ppm.integer.v1",
     unit: "ppm",
@@ -131,9 +131,9 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
     constraintsJson: { min: 0 },
   },
   {
-    fieldId: "plant.drainage.ph",
+    fieldId: "plant.watering.drainage.ph",
     label: "Drainage pH",
-    canonicalPath: "drainage.ph",
+    canonicalPath: "watering.drainage.ph",
     semanticKind: RegistrySemanticKind.ph,
     patternKey: "ph.decimal.v1",
     unit: "pH",
@@ -141,6 +141,18 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
     includeInCurrent: true,
     formatJson: { mode: "decimal", precision: 1, step: 0.1 },
     constraintsJson: { min: 0, max: 14 },
+  },
+  {
+    fieldId: "plant.watering.drainage.ppm",
+    label: "Drainage PPM",
+    canonicalPath: "watering.drainage.ppm",
+    semanticKind: RegistrySemanticKind.ppm,
+    patternKey: "ppm.integer.v1",
+    unit: "ppm",
+    required: false,
+    includeInCurrent: true,
+    formatJson: { mode: "integer", step: 1 },
+    constraintsJson: { min: 0 },
   },
   {
     fieldId: "plant.watering.nutrients",
@@ -184,6 +196,13 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
 ];
 
 const WATERING_EVENT_PROFILE_KEY = "watering.event.v1";
+
+const LEGACY_WATERING_FIELD_IDS = [
+  "plant.solution.ph",
+  "plant.solution.ppm",
+  "plant.drainage.ph",
+  "plant.drainage.ppm",
+] as const;
 
 const toInputJsonValue = (
   value?: Record<string, unknown>,
@@ -309,6 +328,23 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
     })),
     skipDuplicates: true,
   });
+
+  const legacyFieldSpecs = await prisma.registryFieldSpec.findMany({
+    where: { fieldId: { in: [...LEGACY_WATERING_FIELD_IDS] } },
+    select: { id: true },
+  });
+
+  const legacyFieldSpecIds = legacyFieldSpecs.map((fieldSpec) => fieldSpec.id);
+
+  if (legacyFieldSpecIds.length) {
+    await prisma.registryProfileField.deleteMany({
+      where: { fieldSpecId: { in: legacyFieldSpecIds } },
+    });
+
+    await prisma.registryFieldSpec.deleteMany({
+      where: { id: { in: legacyFieldSpecIds } },
+    });
+  }
 
   return {
     patterns: FIELD_PATTERNS.length,

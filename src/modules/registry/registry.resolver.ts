@@ -62,6 +62,11 @@ type TToggleRegistryFieldCurrentArgs = {
   includeInCurrent: boolean;
 };
 
+type TRegistryBuildPreviewArgs = {
+  profileKey: string;
+  valuesJson: Record<string, unknown>;
+};
+
 @Resolver("RegistryFieldSpec")
 export class RegistryResolver {
   constructor(private readonly registryService: RegistryService) {}
@@ -101,6 +106,16 @@ export class RegistryResolver {
   @Query("registryProfile")
   registryProfile(@Args("key") key: string) {
     return this.registryService.getProfileByKey(key);
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Query("registryBuildPreview")
+  registryBuildPreview(@Args("input") input: TRegistryBuildPreviewArgs) {
+    return this.registryService.buildPreview({
+      profileKey: input.profileKey,
+      valuesJson: input.valuesJson,
+    });
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
