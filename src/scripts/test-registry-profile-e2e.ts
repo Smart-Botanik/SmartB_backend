@@ -16,6 +16,15 @@ const WATERING_FIELD_IDS = [
   "plant.watering.drainage.ppm",
   "plant.watering.nutrients",
 ] as const;
+const LOCATION_EQUIPMENT_PROFILE_KEY = "location.indoor.equipment.v1";
+const LOCATION_EQUIPMENT_FIELD_IDS = [
+  "location.indoor.enclosure.product_id",
+  "location.indoor.enclosure.width",
+  "location.indoor.enclosure.height",
+  "location.indoor.enclosure.depth",
+  "location.indoor.lighting.vegetation_lamps",
+  "location.indoor.lighting.bloom_lamps",
+] as const;
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -174,6 +183,58 @@ async function main() {
     assert(
       invalidNumber.errors.some((error) => error.code === "precision" || error.code === "step"),
       "Expected precision or step error for invalid pH",
+    );
+
+    const locationProfile = await service.getProfileByKey(LOCATION_EQUIPMENT_PROFILE_KEY);
+    assert(locationProfile, "Expected seeded location.indoor.equipment.v1 profile");
+    assert(locationProfile.entity === "Location", "Expected Location profile");
+    assert(
+      JSON.stringify(locationProfile.fields.map((field) => field.fieldId)) ===
+        JSON.stringify(LOCATION_EQUIPMENT_FIELD_IDS),
+      "Expected location.indoor.equipment.v1 field order from seed",
+    );
+
+    const locationPreview = await service.buildPreview({
+      profileKey: LOCATION_EQUIPMENT_PROFILE_KEY,
+      valuesJson: {
+        "location.indoor.enclosure.product_id": "product-growbox-1",
+        "location.indoor.enclosure.width": 120,
+        "location.indoor.enclosure.height": 200,
+        "location.indoor.enclosure.depth": 60,
+        "location.indoor.lighting.vegetation_lamps": [
+          { label: "Veg LED", productId: "lamp-veg-1", watts: 120 },
+        ],
+        "location.indoor.lighting.bloom_lamps": [
+          { label: "Bloom LED", productId: "lamp-bloom-1", watts: 240 },
+        ],
+      },
+    });
+
+    assert(
+      locationPreview.errors.length === 0,
+      `Expected no location preview errors, got ${JSON.stringify(locationPreview.errors)}`,
+    );
+    assert(
+      JSON.stringify(locationPreview.payload) ===
+        JSON.stringify({
+          equipment: {
+            enclosure: {
+              product_id: "product-growbox-1",
+              width: 120,
+              height: 200,
+              depth: 60,
+            },
+            lighting: {
+              vegetation_lamps: [
+                { label: "Veg LED", productId: "lamp-veg-1", watts: 120 },
+              ],
+              bloom_lamps: [
+                { label: "Bloom LED", productId: "lamp-bloom-1", watts: 240 },
+              ],
+            },
+          },
+        }),
+      "Expected location equipment preview payload to follow canonical paths",
     );
 
     // eslint-disable-next-line no-console
