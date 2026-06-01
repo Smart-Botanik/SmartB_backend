@@ -9,6 +9,14 @@ import { RegistryService } from "../modules/registry/registry.service";
 import { seedRegistryFieldSpecs } from "./seed-registry-field-specs";
 
 const WATERING_PROFILE_KEY = "watering.event.v1";
+const WATERING_CHART_PROFILE_KEY = "watering.chart.v1";
+const CURRENT_SNAPSHOT_PROFILE_KEY = "current.snapshot.v1";
+const WATERING_CHART_FIELD_IDS = [
+  "plant.watering.solution.ph",
+  "plant.watering.solution.ppm",
+  "plant.watering.drainage.ph",
+  "plant.watering.drainage.ppm",
+] as const;
 const WATERING_FIELD_IDS = [
   "plant.watering.solution.ph",
   "plant.watering.solution.ppm",
@@ -24,6 +32,11 @@ const LOCATION_EQUIPMENT_FIELD_IDS = [
   "location.indoor.enclosure.depth",
   "location.indoor.lighting.vegetation_lamps",
   "location.indoor.lighting.bloom_lamps",
+] as const;
+const DIARY_SETUP_CONFIG_PROFILE_KEY = "diary.setup.config.v1";
+const DIARY_SETUP_CONFIG_FIELD_IDS = [
+  "diary.setup.watering_type",
+  "diary.setup.room_type",
 ] as const;
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -55,6 +68,7 @@ async function main() {
 
   const mismatchFieldId = "diary.registry.profile.e2e";
   const deprecatedFieldId = "plant.registry.profile.deprecated_e2e";
+  const deprecateOnlyFieldId = "plant.registry.deprecate.e2e";
 
   try {
     await seedRegistryFieldSpecs(prisma);
@@ -79,6 +93,24 @@ async function main() {
       updated.fields.find((field) => field.fieldId === "plant.watering.solution.ph")?.required ===
         true,
       "Expected solution pH to be required",
+    );
+
+    const chartProfile = await service.getProfileByKey(WATERING_CHART_PROFILE_KEY);
+    assert(chartProfile, "Expected seeded watering.chart.v1 profile");
+    assert(chartProfile.kind === RegistryProfileKind.timeseries_read, "Expected timeseries_read");
+    assert(
+      JSON.stringify(chartProfile.fields.map((field) => field.fieldId)) ===
+        JSON.stringify(WATERING_CHART_FIELD_IDS),
+      "Expected watering.chart.v1 numeric slice without nutrients",
+    );
+
+    const snapshotProfile = await service.getProfileByKey(CURRENT_SNAPSHOT_PROFILE_KEY);
+    assert(snapshotProfile, "Expected seeded current.snapshot.v1 profile");
+    assert(snapshotProfile.kind === RegistryProfileKind.snapshot_build, "Expected snapshot_build");
+    assert(
+      JSON.stringify(snapshotProfile.fields.map((field) => field.fieldId)) ===
+        JSON.stringify(WATERING_FIELD_IDS),
+      "Expected current.snapshot.v1 to include all includeInCurrent watering fields",
     );
 
     await prisma.registryFieldSpec.upsert({
@@ -237,6 +269,87 @@ async function main() {
       "Expected location equipment preview payload to follow canonical paths",
     );
 
+    const diaryProfile = await service.getProfileByKey(DIARY_SETUP_CONFIG_PROFILE_KEY);
+    assert(diaryProfile, "Expected seeded diary.setup.config.v1 profile");
+    assert(diaryProfile.entity === "Diary", "Expected Diary profile");
+    assert(
+      JSON.stringify(diaryProfile.fields.map((field) => field.fieldId)) ===
+        JSON.stringify(DIARY_SETUP_CONFIG_FIELD_IDS),
+      "Expected diary.setup.config.v1 field order from seed",
+    );
+
+    const diaryPreview = await service.buildPreview({
+      profileKey: DIARY_SETUP_CONFIG_PROFILE_KEY,
+      valuesJson: {
+        "diary.setup.watering_type": "drip",
+        "diary.setup.room_type": "indoor",
+      },
+    });
+
+    assert(
+      diaryPreview.errors.length === 0,
+      `Expected no diary preview errors, got ${JSON.stringify(diaryPreview.errors)}`,
+    );
+    assert(
+      JSON.stringify(diaryPreview.payload) ===
+        JSON.stringify({
+          diary: {
+            wateringType: "drip",
+            roomType: "indoor",
+          },
+        }),
+      "Expected diary setup preview payload to follow canonical paths",
+    );
+
+    await prisma.registryFieldSpec.upsert({
+      where: { fieldId: deprecateOnlyFieldId },
+      create: {
+        fieldId: deprecateOnlyFieldId,
+        entity: "Plant",
+        label: "Deprecate-only e2e",
+        valueType: RegistryValueType.string,
+        semanticKind: RegistrySemanticKind.generic,
+        canonicalPath: "registry.deprecate.e2e",
+        status: RegistryFieldSpecStatus.active,
+      },
+      update: {
+        entity: "Plant",
+        status: RegistryFieldSpecStatus.active,
+      },
+    });
+
+    const orphanUsage = await service.getFieldSpecUsage(deprecateOnlyFieldId);
+    assert(orphanUsage.profileCount === 0, "Expected orphan field to have no profiles");
+    assert(orphanUsage.isDeprecated === false, "Expected active status before deprecate");
+
+    const deprecatedRow = await service.deprecateFieldSpec(deprecateOnlyFieldId);
+    assert(
+      deprecatedRow.status === RegistryFieldSpecStatus.deprecated,
+      "Expected deprecate mutation to set deprecated status",
+    );
+
+    const deprecatedUsage = await service.getFieldSpecUsage(deprecateOnlyFieldId);
+    assert(deprecatedUsage.isDeprecated === true, "Expected usage to report deprecated");
+    assert(deprecatedUsage.profileCount === 0, "Expected profile count unchanged after deprecate");
+
+    const idempotent = await service.deprecateFieldSpec(deprecateOnlyFieldId);
+    assert(
+      idempotent.status === RegistryFieldSpecStatus.deprecated,
+      "Expected idempotent deprecate to keep deprecated status",
+    );
+
+    const phUsage = await service.getFieldSpecUsage("plant.watering.solution.ph");
+    assert(phUsage.profileCount >= 1, "Expected solution pH to be used in at least one profile");
+    assert(
+      phUsage.profileKeys.includes(WATERING_PROFILE_KEY),
+      "Expected watering.event.v1 to reference solution pH",
+    );
+
+    await expectRejects(
+      () => service.getFieldSpecUsage("plant.registry.nonexistent.e2e"),
+      "Registry field spec not found",
+    );
+
     // eslint-disable-next-line no-console
     console.log("Registry profile E2E smoke passed");
   } finally {
@@ -246,7 +359,9 @@ async function main() {
       requiredFieldIds: ["plant.watering.solution.ph"],
     });
     await prisma.registryFieldSpec.deleteMany({
-      where: { fieldId: { in: [mismatchFieldId, deprecatedFieldId] } },
+      where: {
+        fieldId: { in: [mismatchFieldId, deprecatedFieldId, deprecateOnlyFieldId] },
+      },
     });
     await prisma.$disconnect();
   }

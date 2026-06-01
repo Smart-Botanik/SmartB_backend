@@ -202,4 +202,18 @@ export class RegistryResolver {
       input.includeInCurrent,
     );
   }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Query("registryFieldSpecUsage")
+  registryFieldSpecUsage(@Args("fieldId") fieldId: string) {
+    return this.registryService.getFieldSpecUsage(fieldId);
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
+  @Mutation("deprecateRegistryFieldSpec")
+  deprecateRegistryFieldSpec(@Args("fieldId") fieldId: string) {
+    return this.registryService.deprecateFieldSpec(fieldId);
+  }
 }

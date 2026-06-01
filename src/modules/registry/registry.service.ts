@@ -384,6 +384,72 @@ export class RegistryService {
     return this.getProfileByKey(profileKey);
   }
 
+  async getFieldSpecUsage(fieldIdRaw: string) {
+    const fieldId = fieldIdRaw.trim();
+    if (!fieldId.length) {
+      throw new BadRequestException("fieldId is required");
+    }
+
+    const fieldSpec = await this.prisma.registryFieldSpec.findUnique({
+      where: { fieldId },
+      select: { fieldId: true, status: true },
+    });
+    if (!fieldSpec) {
+      throw new NotFoundException("Registry field spec not found");
+    }
+
+    const profileFields = await this.prisma.registryProfileField.findMany({
+      where: { fieldSpec: { fieldId } },
+      select: { profile: { select: { key: true } } },
+      orderBy: { profile: { key: "asc" } },
+    });
+
+    const profileKeys = profileFields.map(row => row.profile.key);
+
+    return {
+      fieldId: fieldSpec.fieldId,
+      profileKeys,
+      profileCount: profileKeys.length,
+      isDeprecated: fieldSpec.status !== RegistryFieldSpecStatus.active,
+    };
+  }
+
+  async deprecateFieldSpec(fieldIdRaw: string) {
+    const fieldId = fieldIdRaw.trim();
+    if (!fieldId.length) {
+      throw new BadRequestException("fieldId is required");
+    }
+
+    const existing = await this.prisma.registryFieldSpec.findUnique({
+      where: { fieldId },
+      include: { fieldPattern: { select: { key: true } } },
+    });
+    if (!existing) {
+      throw new NotFoundException("Registry field spec not found");
+    }
+
+    if (existing.status === RegistryFieldSpecStatus.deprecated) {
+      return {
+        ...existing,
+        fieldPatternKey: existing.fieldPattern?.key ?? null,
+      };
+    }
+
+    return this.prisma.registryFieldSpec
+      .update({
+        where: { fieldId },
+        data: {
+          status: RegistryFieldSpecStatus.deprecated,
+          version: { increment: 1 },
+        },
+        include: { fieldPattern: { select: { key: true } } },
+      })
+      .then(row => ({
+        ...row,
+        fieldPatternKey: row.fieldPattern?.key ?? null,
+      }));
+  }
+
   async buildPreview(input: TRegistryBuildPreviewInput) {
     const profileKey = input.profileKey.trim();
     if (!profileKey.length) {

@@ -1,6 +1,7 @@
 import {
   Prisma,
   PrismaClient,
+  RegistryFieldSpecStatus,
   RegistryProfileKind,
   RegistrySemanticKind,
   RegistryValueType,
@@ -252,7 +253,127 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
 ];
 
 const WATERING_EVENT_PROFILE_KEY = "watering.event.v1";
+const WATERING_CHART_PROFILE_KEY = "watering.chart.v1";
+const CURRENT_SNAPSHOT_PROFILE_KEY = "current.snapshot.v1";
 const LOCATION_INDOOR_EQUIPMENT_PROFILE_KEY = "location.indoor.equipment.v1";
+const DIARY_SETUP_CONFIG_PROFILE_KEY = "diary.setup.config.v1";
+export const PLANT_CREATED_PROFILE_KEY = "plant.created.v1";
+export const PLANT_CREATED_ACTION_PATH = "common.plant.created";
+
+const PLANT_CREATED_FIELD_SPECS: TFieldSeed[] = [
+  {
+    fieldId: "plant.created.name",
+    label: "Название",
+    canonicalPath: "name",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: true,
+    includeInCurrent: true,
+  },
+  {
+    fieldId: "plant.created.item_label",
+    label: "Метка",
+    canonicalPath: "itemLabel",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: true,
+  },
+  {
+    fieldId: "plant.created.product_id",
+    label: "Продукт",
+    canonicalPath: "productId",
+    semanticKind: RegistrySemanticKind.generic,
+    patternKey: "product.reference.v1",
+    required: false,
+    includeInCurrent: true,
+  },
+  {
+    fieldId: "plant.created.pot_type",
+    label: "Тип горшка",
+    canonicalPath: "potType",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: true,
+    formatJson: {
+      mode: "select",
+      options: ["growBag", "airPot", "standart", "plastic"],
+    },
+  },
+  {
+    fieldId: "plant.created.pot_size",
+    label: "Объём горшка (л)",
+    canonicalPath: "potSize",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: true,
+    formatJson: { mode: "decimal", precision: 1, step: 0.1 },
+    constraintsJson: { min: 0 },
+  },
+  {
+    fieldId: "plant.created.period",
+    label: "Период",
+    canonicalPath: "period",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: true,
+    formatJson: {
+      mode: "select",
+      options: ["germination", "vegetation", "bloom", "harvest"],
+    },
+  },
+  {
+    fieldId: "plant.created.notes",
+    label: "Заметка",
+    canonicalPath: "notes",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: true,
+  },
+];
+
+const PLANT_CREATED_ACTION_PATH_MAPPING = {
+  name: { currentKey: "name", is_state_field: true },
+  itemLabel: { currentKey: "itemLabel", is_state_field: true },
+  productId: { currentKey: "productId", is_state_field: true },
+  potType: { currentKey: "potType", is_state_field: true },
+  potSize: { currentKey: "potSize", is_state_field: true },
+  period: { currentKey: "period", is_state_field: true },
+  notes: { currentKey: "notes", is_state_field: true },
+} as const;
+
+const DIARY_SETUP_CONFIG_FIELD_SPECS: TFieldSeed[] = [
+  {
+    fieldId: "diary.setup.watering_type",
+    label: "Diary watering type",
+    canonicalPath: "diary.wateringType",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: true,
+    formatJson: {
+      mode: "select",
+      options: ["manual", "drip", "hydroponics", "aeroponics"],
+    },
+  },
+  {
+    fieldId: "diary.setup.room_type",
+    label: "Diary room type",
+    canonicalPath: "diary.roomType",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: true,
+    formatJson: {
+      mode: "select",
+      options: ["indoor", "outdoor", "greenhouse"],
+    },
+  },
+];
 
 const LOCATION_INDOOR_EQUIPMENT_FIELD_SPECS: TFieldSeed[] = [
   {
@@ -393,6 +514,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
         formatJson: toInputJsonValue(field.formatJson),
         constraintsJson: toInputJsonValue(field.constraintsJson),
         fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
       },
       update: {
         label: field.label,
@@ -405,6 +527,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
         formatJson: toInputJsonValue(field.formatJson),
         constraintsJson: toInputJsonValue(field.constraintsJson),
         fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
       },
       select: { id: true, fieldId: true },
     });
@@ -447,6 +570,81 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
     skipDuplicates: true,
   });
 
+  const chartFieldSpecIds = fieldIds.slice(0, 4);
+  const chartProfile = await prisma.registryProfile.upsert({
+    where: { key: WATERING_CHART_PROFILE_KEY },
+    create: {
+      key: WATERING_CHART_PROFILE_KEY,
+      entity: "Plant",
+      kind: RegistryProfileKind.timeseries_read,
+      title: "Watering chart v1",
+      description:
+        "Timeseries read profile for watering metrics (pH/PPM solution + drainage) in charts.",
+      version: 1,
+      isActive: true,
+    },
+    update: {
+      entity: "Plant",
+      kind: RegistryProfileKind.timeseries_read,
+      title: "Watering chart v1",
+      description:
+        "Timeseries read profile for watering metrics (pH/PPM solution + drainage) in charts.",
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  await prisma.registryProfileField.deleteMany({
+    where: { profileId: chartProfile.id },
+  });
+
+  await prisma.registryProfileField.createMany({
+    data: chartFieldSpecIds.map((fieldSpecId, index) => ({
+      profileId: chartProfile.id,
+      fieldSpecId,
+      position: index,
+      required: false,
+    })),
+    skipDuplicates: true,
+  });
+
+  const snapshotProfile = await prisma.registryProfile.upsert({
+    where: { key: CURRENT_SNAPSHOT_PROFILE_KEY },
+    create: {
+      key: CURRENT_SNAPSHOT_PROFILE_KEY,
+      entity: "Plant",
+      kind: RegistryProfileKind.snapshot_build,
+      title: "Plant current snapshot v1",
+      description:
+        "Snapshot build profile: fields with includeInCurrent for Plant.current materialization.",
+      version: 1,
+      isActive: true,
+    },
+    update: {
+      entity: "Plant",
+      kind: RegistryProfileKind.snapshot_build,
+      title: "Plant current snapshot v1",
+      description:
+        "Snapshot build profile: fields with includeInCurrent for Plant.current materialization.",
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  await prisma.registryProfileField.deleteMany({
+    where: { profileId: snapshotProfile.id },
+  });
+
+  await prisma.registryProfileField.createMany({
+    data: fieldIds.map((fieldSpecId, index) => ({
+      profileId: snapshotProfile.id,
+      fieldSpecId,
+      position: index,
+      required: false,
+    })),
+    skipDuplicates: true,
+  });
+
   const locationEquipmentFieldIds: string[] = [];
 
   for (const field of LOCATION_INDOOR_EQUIPMENT_FIELD_SPECS) {
@@ -472,6 +670,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
         formatJson: toInputJsonValue(field.formatJson),
         constraintsJson: toInputJsonValue(field.constraintsJson),
         fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
       },
       update: {
         entity: "Location",
@@ -485,6 +684,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
         formatJson: toInputJsonValue(field.formatJson),
         constraintsJson: toInputJsonValue(field.constraintsJson),
         fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
       },
       select: { id: true },
     });
@@ -527,6 +727,205 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
     skipDuplicates: true,
   });
 
+  const diarySetupConfigFieldIds: string[] = [];
+
+  for (const field of DIARY_SETUP_CONFIG_FIELD_SPECS) {
+    const pattern = field.patternKey
+      ? await prisma.registryFieldPattern.findUnique({
+          where: { key: field.patternKey },
+          select: { id: true, valueType: true },
+        })
+      : null;
+
+    const saved = await prisma.registryFieldSpec.upsert({
+      where: { fieldId: field.fieldId },
+      create: {
+        fieldId: field.fieldId,
+        entity: "Diary",
+        label: field.label,
+        valueType: pattern?.valueType ?? field.valueType ?? RegistryValueType.string,
+        semanticKind: field.semanticKind,
+        unit: field.unit,
+        canonicalPath: field.canonicalPath,
+        required: field.required ?? false,
+        includeInCurrent: field.includeInCurrent ?? false,
+        formatJson: toInputJsonValue(field.formatJson),
+        constraintsJson: toInputJsonValue(field.constraintsJson),
+        fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
+      },
+      update: {
+        entity: "Diary",
+        label: field.label,
+        valueType: pattern?.valueType ?? field.valueType ?? RegistryValueType.string,
+        semanticKind: field.semanticKind,
+        unit: field.unit,
+        canonicalPath: field.canonicalPath,
+        required: field.required ?? false,
+        includeInCurrent: field.includeInCurrent ?? false,
+        formatJson: toInputJsonValue(field.formatJson),
+        constraintsJson: toInputJsonValue(field.constraintsJson),
+        fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
+      },
+      select: { id: true },
+    });
+
+    diarySetupConfigFieldIds.push(saved.id);
+  }
+
+  const diarySetupConfigProfile = await prisma.registryProfile.upsert({
+    where: { key: DIARY_SETUP_CONFIG_PROFILE_KEY },
+    create: {
+      key: DIARY_SETUP_CONFIG_PROFILE_KEY,
+      entity: "Diary",
+      kind: RegistryProfileKind.event_write,
+      title: "Diary setup config v1",
+      description: "Canonical profile for Diary setup configuration payload assembly in v1.",
+      version: 1,
+      isActive: true,
+    },
+    update: {
+      entity: "Diary",
+      kind: RegistryProfileKind.event_write,
+      title: "Diary setup config v1",
+      description: "Canonical profile for Diary setup configuration payload assembly in v1.",
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  await prisma.registryProfileField.deleteMany({
+    where: { profileId: diarySetupConfigProfile.id },
+  });
+
+  await prisma.registryProfileField.createMany({
+    data: diarySetupConfigFieldIds.map((fieldSpecId, index) => ({
+      profileId: diarySetupConfigProfile.id,
+      fieldSpecId,
+      position: index,
+      required: false,
+    })),
+    skipDuplicates: true,
+  });
+
+  const plantCreatedFieldIds: string[] = [];
+
+  for (const field of PLANT_CREATED_FIELD_SPECS) {
+    const pattern = field.patternKey
+      ? await prisma.registryFieldPattern.findUnique({
+          where: { key: field.patternKey },
+          select: { id: true, valueType: true },
+        })
+      : null;
+
+    const saved = await prisma.registryFieldSpec.upsert({
+      where: { fieldId: field.fieldId },
+      create: {
+        fieldId: field.fieldId,
+        entity: "Plant",
+        label: field.label,
+        valueType: pattern?.valueType ?? field.valueType ?? RegistryValueType.string,
+        semanticKind: field.semanticKind,
+        unit: field.unit,
+        canonicalPath: field.canonicalPath,
+        required: field.required ?? false,
+        includeInCurrent: field.includeInCurrent ?? false,
+        formatJson: toInputJsonValue(field.formatJson),
+        constraintsJson: toInputJsonValue(field.constraintsJson),
+        fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
+      },
+      update: {
+        label: field.label,
+        valueType: pattern?.valueType ?? field.valueType ?? RegistryValueType.string,
+        semanticKind: field.semanticKind,
+        unit: field.unit,
+        canonicalPath: field.canonicalPath,
+        required: field.required ?? false,
+        includeInCurrent: field.includeInCurrent ?? false,
+        formatJson: toInputJsonValue(field.formatJson),
+        constraintsJson: toInputJsonValue(field.constraintsJson),
+        fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
+      },
+      select: { id: true },
+    });
+
+    plantCreatedFieldIds.push(saved.id);
+  }
+
+  const plantCreatedProfile = await prisma.registryProfile.upsert({
+    where: { key: PLANT_CREATED_PROFILE_KEY },
+    create: {
+      key: PLANT_CREATED_PROFILE_KEY,
+      entity: "Plant",
+      kind: RegistryProfileKind.event_write,
+      title: "Plant created v1",
+      description:
+        "Стартовые характеристики растения при создании (common.plant.created).",
+      version: 1,
+      isActive: true,
+    },
+    update: {
+      entity: "Plant",
+      kind: RegistryProfileKind.event_write,
+      title: "Plant created v1",
+      description:
+        "Стартовые характеристики растения при создании (common.plant.created).",
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  await prisma.registryProfileField.deleteMany({
+    where: { profileId: plantCreatedProfile.id },
+  });
+
+  await prisma.registryProfileField.createMany({
+    data: plantCreatedFieldIds.map((fieldSpecId, index) => ({
+      profileId: plantCreatedProfile.id,
+      fieldSpecId,
+      position: index,
+      required: index === 0,
+    })),
+    skipDuplicates: true,
+  });
+
+  const commonGroup = await prisma.actionPathRegistryGroup.upsert({
+    where: { path: "common" },
+    create: {
+      path: "common",
+      description: "Common lifecycle events",
+      order: 0,
+    },
+    update: {
+      description: "Common lifecycle events",
+    },
+    select: { id: true },
+  });
+
+  await prisma.actionPathRegistry.upsert({
+    where: { actionPath: PLANT_CREATED_ACTION_PATH },
+    create: {
+      actionPath: PLANT_CREATED_ACTION_PATH,
+      description: "Plant created with starter characteristics",
+      targetType: "Plant",
+      mapping: PLANT_CREATED_ACTION_PATH_MAPPING as unknown as Prisma.InputJsonValue,
+      autoTagRules: [],
+      conditions: Prisma.JsonNull,
+      schema: Prisma.JsonNull,
+      groupId: commonGroup.id,
+      position: 0,
+    },
+    update: {
+      description: "Plant created with starter characteristics",
+      targetType: "Plant",
+      mapping: PLANT_CREATED_ACTION_PATH_MAPPING as unknown as Prisma.InputJsonValue,
+      groupId: commonGroup.id,
+    },
+  });
+
   const legacyFieldSpecs = await prisma.registryFieldSpec.findMany({
     where: { fieldId: { in: [...LEGACY_WATERING_FIELD_IDS] } },
     select: { id: true },
@@ -546,9 +945,21 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
 
   return {
     patterns: FIELD_PATTERNS.length,
-    fields: PLANT_FIELD_SPECS.length + LOCATION_INDOOR_EQUIPMENT_FIELD_SPECS.length,
+    fields:
+      PLANT_FIELD_SPECS.length +
+      LOCATION_INDOOR_EQUIPMENT_FIELD_SPECS.length +
+      DIARY_SETUP_CONFIG_FIELD_SPECS.length +
+      PLANT_CREATED_FIELD_SPECS.length,
     profileKey: WATERING_EVENT_PROFILE_KEY,
-    profileKeys: [WATERING_EVENT_PROFILE_KEY, LOCATION_INDOOR_EQUIPMENT_PROFILE_KEY],
+    profileKeys: [
+      WATERING_EVENT_PROFILE_KEY,
+      WATERING_CHART_PROFILE_KEY,
+      CURRENT_SNAPSHOT_PROFILE_KEY,
+      LOCATION_INDOOR_EQUIPMENT_PROFILE_KEY,
+      DIARY_SETUP_CONFIG_PROFILE_KEY,
+      PLANT_CREATED_PROFILE_KEY,
+    ],
+    plantCreatedActionPath: PLANT_CREATED_ACTION_PATH,
   };
 }
 

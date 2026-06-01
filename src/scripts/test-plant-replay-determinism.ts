@@ -63,9 +63,11 @@ async function main() {
       ...event.payload,
     }),
   };
+  const fakeDiaryProjector = {};
 
   const service = new EventsService(
     fakePrisma as any,
+    fakeDiaryProjector as any,
     fakeProjector as any,
     fakeLocationProjector as any,
   );
