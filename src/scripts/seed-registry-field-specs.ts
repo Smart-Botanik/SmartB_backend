@@ -457,6 +457,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
   fields: number;
   profileKey: string;
   profileKeys: string[];
+  plantCreatedActionPath: string;
 }> {
   for (const pattern of FIELD_PATTERNS) {
     await prisma.registryFieldPattern.upsert({
