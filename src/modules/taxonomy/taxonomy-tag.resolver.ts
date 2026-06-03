@@ -9,10 +9,10 @@ import {
 } from "@nestjs/graphql";
 import { Role } from "@growing/contracts";
 import { CropKind, TaxonomyTagNamespace, TaxonomyTagStatus } from "@prisma/client";
-import type { TaxonomyGroupDeleteStrategy } from "./taxonomy-tag.service";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
+import type { TaxonomyGroupDeleteStrategy } from "./taxonomy-tag.service";
 import { TaxonomyTagService } from "./taxonomy-tag.service";
 
 type TTaxonomyTagRecord = {

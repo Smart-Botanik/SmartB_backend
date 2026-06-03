@@ -1,6 +1,7 @@
 import { ContentStatus, PrismaClient } from "@prisma/client";
 import { ContentService } from "../modules/content/content.service";
-import { TaxonomyTagService } from "../modules/content/taxonomy-tag.service";
+import { TaxonomyTagService } from "../modules/taxonomy/taxonomy-tag.service";
+import { TaxonomyRepository } from "../modules/taxonomy/taxonomy.repository";
 import { seedSiteContent } from "./seed-site-content";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -11,7 +12,7 @@ function assert(condition: unknown, message: string): asserts condition {
 
 async function main() {
   const prisma = new PrismaClient();
-  const taxonomyTagService = new TaxonomyTagService(prisma as never);
+  const taxonomyTagService = new TaxonomyTagService(new TaxonomyRepository(prisma as never));
   const service = new ContentService(prisma as never, taxonomyTagService);
 
   try {

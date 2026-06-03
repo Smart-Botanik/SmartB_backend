@@ -27,7 +27,7 @@ import {
 } from "@growing/content-markdown";
 
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
-import { TaxonomyTagService } from "./taxonomy-tag.service";
+import { TaxonomyTagService } from "../taxonomy/taxonomy-tag.service";
 
 const guideInclude = {
   coverMedia: true,

@@ -14,21 +14,19 @@ import {
   TaxonomyTagNamespace,
   TaxonomyTagStatus,
 } from "@prisma/client";
+import { TaxonomyRepository } from "./taxonomy.repository";
 
 export type TaxonomyGroupDeleteStrategy =
   | "REASSIGN"
   | "CASCADE"
   | "PROMOTE_TO_ROOT";
-import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 @Injectable()
 export class TaxonomyTagService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly taxonomyRepo: TaxonomyRepository) {}
 
   async listScopes() {
-    return this.prisma.taxonomyScope.findMany({
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-    });
+    return this.taxonomyRepo.findManyScopes();
   }
 
   async createScope(params: {
@@ -44,13 +42,11 @@ export class TaxonomyTagService {
       );
     }
     try {
-      return await this.prisma.taxonomyScope.create({
-        data: {
-          key,
-          label: params.label.trim(),
-          description: params.description?.trim() || undefined,
-          sortOrder: params.sortOrder ?? 0,
-        },
+      return await this.taxonomyRepo.createScope({
+        key,
+        label: params.label.trim(),
+        description: params.description?.trim() || undefined,
+        sortOrder: params.sortOrder ?? 0,
       });
     } catch (error) {
       this.handleUniqueViolation(error, "TaxonomyScope key already exists");
@@ -59,26 +55,7 @@ export class TaxonomyTagService {
 
   async forest(scopeKey: string, status?: TaxonomyTagStatus | null) {
     await this.assertScopeExists(scopeKey);
-    return this.prisma.taxonomyTag.findMany({
-      where: {
-        scopeKey,
-        parentId: null,
-        ...(status ? { status } : {}),
-      },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      include: {
-        children: {
-          where: status ? { status } : undefined,
-          orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-          include: {
-            children: {
-              where: status ? { status } : undefined,
-              orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-            },
-          },
-        },
-      },
-    });
+    return this.taxonomyRepo.findForestRoots(scopeKey, status ?? undefined);
   }
 
   async list(params: {
@@ -111,31 +88,17 @@ export class TaxonomyTagService {
         : {}),
     };
 
-    const [total, items] = await this.prisma.$transaction([
-      this.prisma.taxonomyTag.count({ where }),
-      this.prisma.taxonomyTag.findMany({
-        where,
-        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-        take: params.limit ?? undefined,
-        skip: params.offset ?? undefined,
-        include: {
-          parent: true,
-          children: { orderBy: [{ sortOrder: "asc" }, { label: "asc" }] },
-        },
-      }),
-    ]);
+    const { total, items } = await this.taxonomyRepo.listPage({
+      where,
+      limit: params.limit ?? undefined,
+      offset: params.offset ?? undefined,
+    });
 
     return { items, total };
   }
 
   async getById(id: string) {
-    const tag = await this.prisma.taxonomyTag.findUnique({
-      where: { id },
-      include: {
-        parent: true,
-        children: { orderBy: [{ sortOrder: "asc" }, { label: "asc" }] },
-      },
-    });
+    const tag = await this.taxonomyRepo.findTagById(id);
     if (!tag) {
       throw new NotFoundException("TaxonomyTag not found");
     }
@@ -170,22 +133,16 @@ export class TaxonomyTagService {
       throw new BadRequestException(`key must start with "${scopeKey}."`);
     }
     try {
-      return await this.prisma.taxonomyTag.create({
-        data: {
-          scopeKey,
-          key,
-          namespace: params.namespace,
-          label: params.label.trim(),
-          sortOrder: params.sortOrder ?? 0,
-          parentId: params.parentId ?? undefined,
-          cropKind: params.cropKind ?? undefined,
-          variantAxis: params.variantAxis?.trim() ?? undefined,
-          status: params.status ?? TaxonomyTagStatus.ACTIVE,
-        },
-        include: {
-          parent: true,
-          children: { orderBy: [{ sortOrder: "asc" }, { label: "asc" }] },
-        },
+      return await this.taxonomyRepo.createTag({
+        scopeKey,
+        key,
+        namespace: params.namespace,
+        label: params.label.trim(),
+        sortOrder: params.sortOrder ?? 0,
+        parentId: params.parentId ?? undefined,
+        cropKind: params.cropKind ?? undefined,
+        variantAxis: params.variantAxis?.trim() ?? undefined,
+        status: params.status ?? TaxonomyTagStatus.ACTIVE,
       });
     } catch (error) {
       this.handleUniqueViolation(error, "TaxonomyTag key already exists");
@@ -209,25 +166,18 @@ export class TaxonomyTagService {
       params.parentId !== undefined ? params.parentId : existing.parentId;
     await this.assertParentForNamespace(namespace, parentId, existing.scopeKey);
     try {
-      return await this.prisma.taxonomyTag.update({
-        where: { id: params.id },
-        data: {
-          key: params.key?.trim() ?? undefined,
-          namespace: params.namespace ?? undefined,
-          label: params.label?.trim() ?? undefined,
-          sortOrder: params.sortOrder ?? undefined,
-          parentId: params.parentId === null ? null : params.parentId ?? undefined,
-          cropKind: params.cropKind === null ? null : params.cropKind ?? undefined,
-          variantAxis:
-            params.variantAxis === null
-              ? null
-              : params.variantAxis?.trim() ?? undefined,
-          status: params.status ?? undefined,
-        },
-        include: {
-          parent: true,
-          children: { orderBy: [{ sortOrder: "asc" }, { label: "asc" }] },
-        },
+      return await this.taxonomyRepo.updateTag(params.id, {
+        key: params.key?.trim() ?? undefined,
+        namespace: params.namespace ?? undefined,
+        label: params.label?.trim() ?? undefined,
+        sortOrder: params.sortOrder ?? undefined,
+        parentId: params.parentId === null ? null : params.parentId ?? undefined,
+        cropKind: params.cropKind === null ? null : params.cropKind ?? undefined,
+        variantAxis:
+          params.variantAxis === null
+            ? null
+            : params.variantAxis?.trim() ?? undefined,
+        status: params.status ?? undefined,
       });
     } catch (error) {
       this.handleUniqueViolation(error, "TaxonomyTag key already exists");
@@ -241,7 +191,7 @@ export class TaxonomyTagService {
         "Tag has child tags; use deleteTaxonomyGroup to remove a group",
       );
     }
-    await this.prisma.taxonomyTag.delete({ where: { id } });
+    await this.taxonomyRepo.deleteTag(id);
     return true;
   }
 
@@ -260,29 +210,21 @@ export class TaxonomyTagService {
       if (!params.newParentId) {
         throw new BadRequestException("newParentId is required for REASSIGN");
       }
-      const newParent = await this.prisma.taxonomyTag.findUnique({
-        where: { id: params.newParentId },
-      });
+      const newParent = await this.taxonomyRepo.findTagForParentCheck(params.newParentId);
       if (!newParent || newParent.scopeKey !== group.scopeKey) {
         throw new BadRequestException("newParentId must be a tag in the same scope");
       }
       if (params.newParentId === params.id) {
         throw new BadRequestException("newParentId cannot be the group being deleted");
       }
-      await this.prisma.taxonomyTag.updateMany({
-        where: { parentId: params.id },
-        data: { parentId: params.newParentId },
-      });
-      await this.prisma.taxonomyTag.delete({ where: { id: params.id } });
+      await this.taxonomyRepo.updateChildrenParent(params.id, params.newParentId);
+      await this.taxonomyRepo.deleteTag(params.id);
       return true;
     }
 
     if (params.strategy === "PROMOTE_TO_ROOT") {
-      await this.prisma.taxonomyTag.updateMany({
-        where: { parentId: params.id },
-        data: { parentId: null },
-      });
-      await this.prisma.taxonomyTag.delete({ where: { id: params.id } });
+      await this.taxonomyRepo.updateChildrenParent(params.id, null);
+      await this.taxonomyRepo.deleteTag(params.id);
       return true;
     }
 
@@ -295,14 +237,11 @@ export class TaxonomyTagService {
   }
 
   private async deleteSubtree(rootId: string) {
-    const children = await this.prisma.taxonomyTag.findMany({
-      where: { parentId: rootId },
-      select: { id: true },
-    });
+    const children = await this.taxonomyRepo.findChildIds(rootId);
     for (const child of children) {
       await this.deleteSubtree(child.id);
     }
-    await this.prisma.taxonomyTag.delete({ where: { id: rootId } });
+    await this.taxonomyRepo.deleteTag(rootId);
   }
 
   async connectByIds(
@@ -316,9 +255,7 @@ export class TaxonomyTagService {
       return { set: [] as { id: string }[] };
     }
 
-    const tags = await this.prisma.taxonomyTag.findMany({
-      where: { id: { in: taxonomyTagIds } },
-    });
+    const tags = await this.taxonomyRepo.findTagsByIds(taxonomyTagIds);
     if (tags.length !== taxonomyTagIds.length) {
       throw new BadRequestException("taxonomyTagIds: one or more tags not found");
     }
@@ -339,10 +276,7 @@ export class TaxonomyTagService {
     if (keys.length === 0) {
       return { set: [] as { id: string }[] };
     }
-    const tags = await this.prisma.taxonomyTag.findMany({
-      where: { key: { in: keys } },
-      select: { id: true, key: true },
-    });
+    const tags = await this.taxonomyRepo.findTagsByKeys(keys);
     const found = new Set(tags.map(tag => tag.key));
     const missing = keys.filter(key => !found.has(key));
     if (missing.length > 0) {
@@ -382,19 +316,14 @@ export class TaxonomyTagService {
     parentId: string | null,
   ): Promise<string> {
     if (parentId) {
-      const parent = await this.prisma.taxonomyTag.findUnique({
-        where: { id: parentId },
-        select: { scopeKey: true },
-      });
+      const parent = await this.taxonomyRepo.findTagScopeKey(parentId);
       if (!parent) {
         throw new BadRequestException("parentId not found");
       }
       return parent.scopeKey;
     }
     const prefix = key.split(".")[0];
-    const scope = await this.prisma.taxonomyScope.findUnique({
-      where: { key: prefix },
-    });
+    const scope = await this.taxonomyRepo.findScopeByKey(prefix);
     if (scope) {
       return scope.key;
     }
@@ -404,9 +333,7 @@ export class TaxonomyTagService {
   }
 
   private async assertScopeExists(scopeKey: string) {
-    const scope = await this.prisma.taxonomyScope.findUnique({
-      where: { key: scopeKey },
-    });
+    const scope = await this.taxonomyRepo.findScopeByKey(scopeKey);
     if (!scope) {
       throw new BadRequestException(`TaxonomyScope not found: ${scopeKey}`);
     }
@@ -421,9 +348,7 @@ export class TaxonomyTagService {
       if (!parentId) {
         throw new BadRequestException("parentId is required for CROP_VARIANT");
       }
-      const parent = await this.prisma.taxonomyTag.findUnique({
-        where: { id: parentId },
-      });
+      const parent = await this.taxonomyRepo.findTagForParentCheck(parentId);
       if (
         !parent ||
         parent.namespace !== TaxonomyTagNamespace.CROP ||
@@ -436,9 +361,7 @@ export class TaxonomyTagService {
       return;
     }
     if (parentId) {
-      const parent = await this.prisma.taxonomyTag.findUnique({
-        where: { id: parentId },
-      });
+      const parent = await this.taxonomyRepo.findTagForParentCheck(parentId);
       if (!parent || parent.scopeKey !== scopeKey) {
         throw new BadRequestException("parent must be in the same scope");
       }

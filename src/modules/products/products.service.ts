@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { TaxonomyTagService } from "../content/taxonomy-tag.service";
+import { TaxonomyTagService } from "../taxonomy/taxonomy-tag.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 const productInclude = {

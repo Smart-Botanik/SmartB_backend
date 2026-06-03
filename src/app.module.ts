@@ -6,6 +6,7 @@ import { GraphQLDateTime, GraphQLJSON } from "graphql-scalars";
 import type { Request } from "express";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BrandsModule } from "./modules/brands/brands.module";
+import { TaxonomyModule } from "./modules/taxonomy/taxonomy.module";
 import { ContentModule } from "./modules/content/content.module";
 import { DiaryModule } from "./modules/diary/diary.module";
 import { EventsModule } from "./modules/events/events.module";
@@ -51,6 +52,7 @@ import { HealthModule } from "./health/health.module";
     EventsModule,
     MediaModule,
     BrandsModule,
+    TaxonomyModule,
     ContentModule,
     TelegramModule,
     ProductsModule,
