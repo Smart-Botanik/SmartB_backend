@@ -23,7 +23,9 @@
     "test:plant-replay:time-boundary": "ts-node src/scripts/test-plant-replay-time-boundary.ts",
     "test:registry-profile:e2e": "ts-node src/scripts/test-registry-profile-e2e.ts",
     "test:registry-plant-created:e2e": "ts-node src/scripts/test-registry-plant-created-e2e.ts",
-    "test:taxonomy:e2e": "ts-node src/scripts/test-taxonomy-e2e.ts"
+    "test:taxonomy:e2e": "ts-node src/scripts/test-taxonomy-e2e.ts",
+    "db:export-taxonomy": "ts-node src/scripts/export-taxonomy-db.ts",
+    "db:verify-taxonomy-export": "ts-node src/scripts/verify-taxonomy-db-export.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

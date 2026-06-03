@@ -50,6 +50,19 @@ npm run test:taxonomy:e2e
 
 Requires database with seed or runs `seedTaxonomyTags` inline.
 
-## Next (BK-MS-TAX-2)
+## Phase 1 proxy (BK-MS-TAX-2 spike)
 
-Extract deployable `taxonomy-service` + separate DB; monolith proxies GraphQL or federates schema.
+When **`TAXONOMY_SERVICE_URL`** is set, monolith uses **`TaxonomyTagRemoteService`** (GraphQL over HTTP) instead of local Prisma. Clients keep **`/graphql`** on monolith.
+
+| Env | Purpose |
+|-----|---------|
+| `TAXONOMY_SERVICE_URL` | e.g. `http://localhost:3010` |
+| `TAXONOMY_SERVICE_INTERNAL_KEY` | Header `X-Taxonomy-Internal-Key` for service-to-service |
+| `TAXONOMY_DATABASE_URL` | Target DB for `npm run db:export-taxonomy` |
+
+Standalone service: [`../../services/taxonomy/README.md`](../../services/taxonomy/README.md).  
+Research: [`../../memory/backend/research-taxonomy-service-extract-v1.md`](../../memory/backend/research-taxonomy-service-extract-v1.md).
+
+## Next (BK-MS-TAX-3)
+
+Cutover: drop monolith taxonomy tables; M2M Product/Guide keeps tag ids only.
