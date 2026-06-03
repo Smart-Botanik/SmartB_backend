@@ -1,3 +1,4 @@
+import { Role } from "@growing/contracts";
 import {
   PrismaClient,
   RegistryFieldSpecStatus,
@@ -349,6 +350,32 @@ async function main() {
       () => service.getFieldSpecUsage("plant.registry.nonexistent.e2e"),
       "Registry field spec not found",
     );
+
+    const diaryProfileForUser = await service.getProfileByKey(
+      DIARY_SETUP_CONFIG_PROFILE_KEY,
+      Role.USER,
+    );
+    assert(diaryProfileForUser, "Expected USER to read diary.setup.config.v1 profile");
+    assert(
+      diaryProfileForUser.fields.map((field) => field.fieldId).join(",") ===
+        DIARY_SETUP_CONFIG_FIELD_IDS.join(","),
+      "Expected diary.setup.config.v1 field order for USER",
+    );
+
+    const diaryFieldSpecsForUser = await service.listFieldSpecs({
+      entity: "Diary",
+      role: Role.USER,
+    });
+    assert(
+      diaryFieldSpecsForUser.length === DIARY_SETUP_CONFIG_FIELD_IDS.length,
+      "Expected USER Diary field spec slice",
+    );
+
+    const adminOnlyProfile = await service.getProfileByKey(
+      WATERING_CHART_PROFILE_KEY,
+      Role.USER,
+    );
+    assert(adminOnlyProfile === null, "Expected USER to be denied watering.chart.v1 profile");
 
     // eslint-disable-next-line no-console
     console.log("Registry profile E2E smoke passed");

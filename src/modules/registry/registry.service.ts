@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  isMainAppRegistryProfileKey,
+  MAIN_APP_REGISTRY_PROFILE_KEYS,
+  Role,
+} from "@growing/contracts";
 import {
   Prisma,
   RegistryFieldSpecStatus,
@@ -86,8 +91,9 @@ export class RegistryService {
   async listFieldSpecs(params?: {
     entity?: string;
     status?: RegistryFieldSpecStatus;
+    role?: Role;
   }) {
-    return this.prisma.registryFieldSpec.findMany({
+    const rows = await this.prisma.registryFieldSpec.findMany({
       where: {
         entity: params?.entity?.trim() || undefined,
         status: params?.status ?? undefined,
@@ -96,12 +102,19 @@ export class RegistryService {
         fieldPattern: { select: { key: true } },
       },
       orderBy: [{ entity: "asc" }, { fieldId: "asc" }],
-    }).then(rows =>
-      rows.map(row => ({
+    }).then(specRows =>
+      specRows.map(row => ({
         ...row,
         fieldPatternKey: row.fieldPattern?.key ?? null,
       })),
     );
+
+    if (params?.role === Role.USER) {
+      const allowedFieldIds = await this.listConsumerFieldIds(params?.entity);
+      return rows.filter(row => allowedFieldIds.has(row.fieldId));
+    }
+
+    return rows;
   }
 
   async listProfiles(params?: {
@@ -130,9 +143,14 @@ export class RegistryService {
     return rows.map((row) => this.mapProfile(row));
   }
 
-  async getProfileByKey(key: string) {
+  async getProfileByKey(key: string, role?: Role) {
+    const profileKey = key.trim();
+    if (role === Role.USER && !isMainAppRegistryProfileKey(profileKey)) {
+      return null;
+    }
+
     const row = await this.prisma.registryProfile.findUnique({
-      where: { key },
+      where: { key: profileKey },
       include: {
         fields: {
           include: {
@@ -144,6 +162,10 @@ export class RegistryService {
     });
 
     if (!row) {
+      return null;
+    }
+
+    if (role === Role.USER && !row.isActive) {
       return null;
     }
 
@@ -450,10 +472,13 @@ export class RegistryService {
       }));
   }
 
-  async buildPreview(input: TRegistryBuildPreviewInput) {
+  async buildPreview(input: TRegistryBuildPreviewInput, role?: Role) {
     const profileKey = input.profileKey.trim();
     if (!profileKey.length) {
       throw new BadRequestException("profileKey is required");
+    }
+    if (role === Role.USER && !isMainAppRegistryProfileKey(profileKey)) {
+      throw new ForbiddenException("Registry profile is not available for this role");
     }
     if (!this.isPlainRecord(input.valuesJson)) {
       throw new BadRequestException("valuesJson must be an object keyed by fieldId");
@@ -539,6 +564,30 @@ export class RegistryService {
         position: f.position,
       })),
     };
+  }
+
+  private async listConsumerFieldIds(entity?: string): Promise<Set<string>> {
+    const entityKey = entity?.trim() || undefined;
+    const profiles = await this.prisma.registryProfile.findMany({
+      where: {
+        key: { in: [...MAIN_APP_REGISTRY_PROFILE_KEYS] },
+        isActive: true,
+        entity: entityKey,
+      },
+      include: {
+        fields: {
+          include: { fieldSpec: { select: { fieldId: true } } },
+        },
+      },
+    });
+
+    const fieldIds = new Set<string>();
+    for (const profile of profiles) {
+      for (const profileField of profile.fields) {
+        fieldIds.add(profileField.fieldSpec.fieldId);
+      }
+    }
+    return fieldIds;
   }
 
   private validateFieldId(fieldId: string) {

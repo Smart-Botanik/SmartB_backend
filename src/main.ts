@@ -54,8 +54,8 @@ async function bootstrap() {
   const port = configService.get<number>("PORT") ?? 3001;
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("Growing App API")
-    .setDescription("Backend API (Nest.js)")
+    .setTitle("SmartБотаник API")
+    .setDescription("Backend API SmartБотаник (Nest.js)")
     .setVersion("0.1.0")
     .addBearerAuth(
       {

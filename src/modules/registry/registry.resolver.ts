@@ -1,5 +1,6 @@
 import { UseGuards } from "@nestjs/common";
-import { Args, Mutation, Query, Resolver } from "@nestjs/graphql";
+import { Args, Context, Mutation, Query, Resolver } from "@nestjs/graphql";
+import type { Request } from "express";
 import { Role } from "@growing/contracts";
 import {
   RegistryFieldSpecStatus,
@@ -11,6 +12,16 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { RegistryService } from "./registry.service";
+
+type GqlRequest = Request & { user?: { userId?: string; role?: Role } };
+
+function getUserRole(req: GqlRequest): Role {
+  const role = req.user?.role;
+  if (role === undefined) {
+    throw new Error("Missing user role in request context");
+  }
+  return role;
+}
 
 type TUpsertRegistryFieldSpecArgs = {
   fieldId: string;
@@ -72,19 +83,25 @@ export class RegistryResolver {
   constructor(private readonly registryService: RegistryService) {}
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.USER)
   @Query("registryFieldSpecs")
   registryFieldSpecs(
+    @Context("req") req: GqlRequest,
     @Args("entity", { nullable: true }) entity?: string,
     @Args("status", { nullable: true }) status?: RegistryFieldSpecStatus,
   ) {
-    return this.registryService.listFieldSpecs({ entity, status });
+    return this.registryService.listFieldSpecs({
+      entity,
+      status,
+      role: getUserRole(req),
+    });
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.USER)
   @Query("registryFieldPatterns")
   registryFieldPatterns(
+    @Context("req") _req: GqlRequest,
     @Args("isActive", { nullable: true }) isActive?: boolean,
   ) {
     return this.registryService.listFieldPatterns({ isActive });
@@ -102,20 +119,26 @@ export class RegistryResolver {
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.USER)
   @Query("registryProfile")
-  registryProfile(@Args("key") key: string) {
-    return this.registryService.getProfileByKey(key);
+  registryProfile(@Context("req") req: GqlRequest, @Args("key") key: string) {
+    return this.registryService.getProfileByKey(key, getUserRole(req));
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.USER)
   @Query("registryBuildPreview")
-  registryBuildPreview(@Args("input") input: TRegistryBuildPreviewArgs) {
-    return this.registryService.buildPreview({
-      profileKey: input.profileKey,
-      valuesJson: input.valuesJson,
-    });
+  registryBuildPreview(
+    @Context("req") req: GqlRequest,
+    @Args("input") input: TRegistryBuildPreviewArgs,
+  ) {
+    return this.registryService.buildPreview(
+      {
+        profileKey: input.profileKey,
+        valuesJson: input.valuesJson,
+      },
+      getUserRole(req),
+    );
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)

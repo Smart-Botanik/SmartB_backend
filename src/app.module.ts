@@ -6,6 +6,7 @@ import { GraphQLDateTime, GraphQLJSON } from "graphql-scalars";
 import type { Request } from "express";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BrandsModule } from "./modules/brands/brands.module";
+import { ContentModule } from "./modules/content/content.module";
 import { DiaryModule } from "./modules/diary/diary.module";
 import { EventsModule } from "./modules/events/events.module";
 import { MediaModule } from "./modules/media/media.module";
@@ -15,6 +16,7 @@ import { ProductsModule } from "./modules/products/products.module";
 import { PrimitivesModule } from "./modules/primitives/primitives.module";
 import { RegistryModule } from "./modules/registry/registry.module";
 import { TagsModule } from "./modules/tags/tags.module";
+import { TelegramModule } from "./modules/telegram/telegram.module";
 import { UsersModule } from "./modules/users/users.module";
 import { PrismaModule } from "./infrastructure/prisma/prisma.module";
 import { HealthModule } from "./health/health.module";
@@ -49,6 +51,8 @@ import { HealthModule } from "./health/health.module";
     EventsModule,
     MediaModule,
     BrandsModule,
+    ContentModule,
+    TelegramModule,
     ProductsModule,
     PrimitivesModule,
     RegistryModule,

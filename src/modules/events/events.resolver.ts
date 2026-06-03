@@ -23,10 +23,10 @@ export class EventsResolver {
   constructor(private readonly eventsService: EventsService) {}
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.USER)
   @Query("events")
   events(
-    @Context("req") _req: GqlRequest,
+    @Context("req") req: GqlRequest,
     @Args("limit", { nullable: true }) limit?: number,
     @Args("offset", { nullable: true }) offset?: number,
     @Args("targetType", { nullable: true }) targetType?: string,
@@ -34,7 +34,10 @@ export class EventsResolver {
     @Args("actionPath", { nullable: true }) actionPath?: string,
     @Args("isSystem", { nullable: true }) isSystem?: boolean,
   ) {
+    const { userId, role } = getUserContext(req);
     return this.eventsService.listEvents({
+      userId,
+      userRole: role,
       limit,
       offset,
       targetType,
@@ -185,6 +188,25 @@ export class EventsResolver {
   ) {
     return this.eventsService.createLocationEvent({
       locationId,
+      actionPath,
+      payloadJson,
+    });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN, Role.USER)
+  @Mutation("createDiaryEvent")
+  createDiaryEvent(
+    @Context("req") req: GqlRequest,
+    @Args("diaryId") diaryId: string,
+    @Args("actionPath") actionPath: string,
+    @Args("payloadJson") payloadJson: string,
+  ) {
+    const { userId, role } = getUserContext(req);
+    return this.eventsService.createDiaryEvent({
+      userId,
+      userRole: role,
+      diaryId,
       actionPath,
       payloadJson,
     });

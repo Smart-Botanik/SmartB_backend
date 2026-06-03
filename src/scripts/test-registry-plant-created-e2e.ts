@@ -12,7 +12,12 @@ const PLANT_CREATED_FIELD_IDS = [
   "plant.created.product_id",
   "plant.created.pot_type",
   "plant.created.pot_size",
+  "plant.created.pot.width",
+  "plant.created.pot.height",
+  "plant.created.bed.width",
+  "plant.created.bed.height",
   "plant.created.period",
+  "plant.created.planting.date",
   "plant.created.notes",
 ] as const;
 
@@ -22,7 +27,12 @@ const PLANT_CREATED_PREVIEW_VALUES = {
   "plant.created.product_id": "product-seed-1",
   "plant.created.pot_type": "growBag",
   "plant.created.pot_size": 11.5,
+  "plant.created.pot.width": 30,
+  "plant.created.pot.height": 30,
+  "plant.created.bed.width": 45,
+  "plant.created.bed.height": 60,
   "plant.created.period": "vegetation",
+  "plant.created.planting.date": "2026-05-20",
   "plant.created.notes": "First clone",
 } as const;
 
@@ -30,9 +40,10 @@ const PLANT_CREATED_EXPECTED_PAYLOAD = {
   name: "Northern Lights #1",
   itemLabel: "NL-1",
   productId: "product-seed-1",
-  potType: "growBag",
-  potSize: 11.5,
+  pot: { type: "growBag", size: 11.5, width: 30, height: 30 },
+  bed: { width: 45, height: 60 },
   period: "vegetation",
+  planting: { date: "2026-05-20" },
   notes: "First clone",
 } as const;
 
@@ -40,9 +51,14 @@ const PLANT_CREATED_ACTION_PATH_MAPPING = {
   name: { currentKey: "name", is_state_field: true },
   itemLabel: { currentKey: "itemLabel", is_state_field: true },
   productId: { currentKey: "productId", is_state_field: true },
-  potType: { currentKey: "potType", is_state_field: true },
-  potSize: { currentKey: "potSize", is_state_field: true },
+  "pot.type": { currentKey: "pot.type", is_state_field: true },
+  "pot.size": { currentKey: "pot.size", is_state_field: true },
+  "pot.width": { currentKey: "pot.width", is_state_field: true },
+  "pot.height": { currentKey: "pot.height", is_state_field: true },
+  "bed.width": { currentKey: "bed.width", is_state_field: true },
+  "bed.height": { currentKey: "bed.height", is_state_field: true },
   period: { currentKey: "period", is_state_field: true },
+  "planting.date": { currentKey: "planting.date", is_state_field: true },
   notes: { currentKey: "notes", is_state_field: true },
 } as const;
 

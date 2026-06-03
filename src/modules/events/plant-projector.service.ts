@@ -69,7 +69,7 @@ export class PlantProjectorService {
 
         const value = getValueAtPayloadPath(payload, payloadKey);
         if (value !== undefined) {
-          patch[entry.currentKey] = value;
+          this.setValueAtPath(patch, entry.currentKey, value);
         }
       }
     }
@@ -113,7 +113,49 @@ export class PlantProjectorService {
     if (Object.keys(patch).length === 0) {
       return state;
     }
-    return { ...state, ...patch };
+    return this.mergeDeep(state, patch);
+  }
+
+  private setValueAtPath(
+    target: JsonObject,
+    path: string,
+    value: unknown,
+  ): void {
+    const segments = path.split(".");
+    let cursor: JsonObject = target;
+
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index];
+      const isLeaf = index === segments.length - 1;
+
+      if (isLeaf) {
+        cursor[segment] = value;
+        return;
+      }
+
+      const next = cursor[segment];
+      if (next === undefined) {
+        cursor[segment] = {};
+      } else if (!isPlainObject(next)) {
+        cursor[segment] = {};
+      }
+
+      cursor = cursor[segment] as JsonObject;
+    }
+  }
+
+  private mergeDeep(base: JsonObject, patch: JsonObject): JsonObject {
+    const out: JsonObject = { ...base };
+
+    for (const [key, value] of Object.entries(patch)) {
+      if (isPlainObject(value) && isPlainObject(out[key])) {
+        out[key] = this.mergeDeep(out[key] as JsonObject, value);
+      } else {
+        out[key] = value;
+      }
+    }
+
+    return out;
   }
 
   async projectEventToPlantCurrent(event: RuntimeEvent): Promise<void> {

@@ -116,6 +116,17 @@ const FIELD_PATTERNS: TPatternSeed[] = [
     constraintsJson: { min: 0 },
   },
   {
+    key: "length.mm.integer.v1",
+    title: "Length in millimeters",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.length,
+    canonicalUnit: "mm",
+    allowedUnits: ["mm"],
+    defaultInputUnit: "mm",
+    formatJson: { mode: "integer", step: 1 },
+    constraintsJson: { min: 0 },
+  },
+  {
     key: "power.watt.integer.v1",
     title: "Power in watts",
     valueType: RegistryValueType.number,
@@ -124,6 +135,18 @@ const FIELD_PATTERNS: TPatternSeed[] = [
     allowedUnits: ["W"],
     defaultInputUnit: "W",
     formatJson: { mode: "integer", step: 1 },
+    constraintsJson: { min: 0 },
+  },
+  {
+    key: "volume.l_g.decimal.v1",
+    title: "Volume in liters / gallons",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.generic,
+    canonicalUnit: "L",
+    allowedUnits: ["L", "G"],
+    defaultInputUnit: "L",
+    conversionProfile: "volume.l_g.us.v1",
+    formatJson: { mode: "decimal", precision: 1, step: 0.1 },
     constraintsJson: { min: 0 },
   },
   {
@@ -252,11 +275,165 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
   },
 ];
 
+const CLIMATE_OBSERVATION_PROFILE_KEY = "climate.observation.event.v1";
+const SIZE_OBSERVATION_PROFILE_KEY = "size.observation.event.v1";
+const HEALTH_TREATMENT_PROFILE_KEY = "health.treatment.event.v1";
+const PERIOD_CHANGE_PROFILE_KEY = "period.change.event.v1";
+
+const HEALTH_TREATMENT_PRODUCT_OPTIONS = [
+  "Deficiency_N",
+  "Deficiency_P",
+  "Deficiency_K",
+  "Deficiency_Ca_Mg",
+  "Deficiency_Micro",
+  "Pest_Spider_Mite",
+  "Pest_Aphids",
+  "Pest_Gnat",
+  "Pest_Thrips",
+  "Disease_Mold",
+  "Disease_Mildew",
+  "Disease_Root_Rot",
+  "Env_Light_Burn",
+  "Env_Heat_Stress",
+  "Env_Overwatering",
+  "Env_Drought",
+  "Nutrient_Lockout",
+  "Nutrient_Burn",
+] as const;
+
+const PLANT_EVENT_EXTENSION_FIELD_SPECS: TFieldSeed[] = [
+  {
+    fieldId: "plant.climate.temperature",
+    label: "Температура",
+    canonicalPath: "climate.temperature.celsius",
+    semanticKind: RegistrySemanticKind.temperature,
+    patternKey: "temperature.decimal.v1",
+    unit: "C",
+    required: false,
+    includeInCurrent: false,
+  },
+  {
+    fieldId: "plant.climate.humidity",
+    label: "Влажность (%)",
+    canonicalPath: "climate.humidityPct",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: false,
+    formatJson: { mode: "decimal", precision: 1, step: 1 },
+    constraintsJson: { min: 0, max: 100 },
+  },
+  {
+    fieldId: "plant.climate.light_schedule_hours",
+    label: "Световой день (ч)",
+    canonicalPath: "climate.lightScheduleHours",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: false,
+    formatJson: { mode: "integer", step: 1 },
+    constraintsJson: { min: 0, max: 24 },
+  },
+  {
+    fieldId: "plant.climate.notes",
+    label: "Заметка (среда)",
+    canonicalPath: "climate.notes",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: false,
+  },
+  {
+    fieldId: "plant.observation.height_mm",
+    label: "Рост (мм)",
+    canonicalPath: "observation.heightMm",
+    semanticKind: RegistrySemanticKind.length,
+    patternKey: "length.mm.integer.v1",
+    unit: "mm",
+    required: true,
+    includeInCurrent: false,
+  },
+  {
+    fieldId: "plant.observation.notes",
+    label: "Заметка (замер)",
+    canonicalPath: "observation.notes",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: false,
+  },
+  {
+    fieldId: "plant.treatment.product",
+    label: "Категория проблемы",
+    canonicalPath: "treatment.product",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: true,
+    includeInCurrent: false,
+    formatJson: {
+      mode: "select",
+      options: [...HEALTH_TREATMENT_PRODUCT_OPTIONS],
+    },
+  },
+  {
+    fieldId: "plant.treatment.method",
+    label: "Лечение (метод)",
+    canonicalPath: "treatment.method",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: false,
+  },
+  {
+    fieldId: "plant.treatment.notes",
+    label: "Заметки (здоровье)",
+    canonicalPath: "treatment.notes",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: false,
+  },
+  {
+    fieldId: "plant.period.phase",
+    label: "Фаза",
+    canonicalPath: "period.phase",
+    valueType: RegistryValueType.string,
+    semanticKind: RegistrySemanticKind.generic,
+    required: true,
+    includeInCurrent: false,
+    formatJson: {
+      mode: "select",
+      options: [
+        "germination",
+        "vegetation",
+        "bloom",
+        "preharvest",
+        "harvest",
+        "flushing",
+        "drying",
+        "dormancy",
+      ],
+    },
+  },
+  {
+    fieldId: "plant.period.period_days",
+    label: "Дней в фазе",
+    canonicalPath: "period.periodDays",
+    valueType: RegistryValueType.number,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: false,
+    formatJson: { mode: "integer", step: 1 },
+    constraintsJson: { min: 0 },
+  },
+];
+
 const WATERING_EVENT_PROFILE_KEY = "watering.event.v1";
 const WATERING_CHART_PROFILE_KEY = "watering.chart.v1";
 const CURRENT_SNAPSHOT_PROFILE_KEY = "current.snapshot.v1";
 const LOCATION_INDOOR_EQUIPMENT_PROFILE_KEY = "location.indoor.equipment.v1";
 const DIARY_SETUP_CONFIG_PROFILE_KEY = "diary.setup.config.v1";
+export const DIARY_SETUP_CONFIG_ACTION_PATH = "diary.setup.config";
 export const PLANT_CREATED_PROFILE_KEY = "plant.created.v1";
 export const PLANT_CREATED_ACTION_PATH = "common.plant.created";
 
@@ -291,7 +468,7 @@ const PLANT_CREATED_FIELD_SPECS: TFieldSeed[] = [
   {
     fieldId: "plant.created.pot_type",
     label: "Тип горшка",
-    canonicalPath: "potType",
+    canonicalPath: "pot.type",
     valueType: RegistryValueType.string,
     semanticKind: RegistrySemanticKind.generic,
     required: false,
@@ -303,14 +480,52 @@ const PLANT_CREATED_FIELD_SPECS: TFieldSeed[] = [
   },
   {
     fieldId: "plant.created.pot_size",
-    label: "Объём горшка (л)",
-    canonicalPath: "potSize",
-    valueType: RegistryValueType.number,
+    label: "Объём горшка",
+    canonicalPath: "pot.size",
     semanticKind: RegistrySemanticKind.generic,
+    patternKey: "volume.l_g.decimal.v1",
     required: false,
     includeInCurrent: true,
-    formatJson: { mode: "decimal", precision: 1, step: 0.1 },
-    constraintsJson: { min: 0 },
+  },
+  {
+    fieldId: "plant.created.pot.width",
+    label: "Ширина горшка",
+    canonicalPath: "pot.width",
+    semanticKind: RegistrySemanticKind.length,
+    patternKey: "length.cm.decimal.v1",
+    unit: "cm",
+    required: false,
+    includeInCurrent: true,
+  },
+  {
+    fieldId: "plant.created.pot.height",
+    label: "Длина горшка",
+    canonicalPath: "pot.height",
+    semanticKind: RegistrySemanticKind.length,
+    patternKey: "length.cm.decimal.v1",
+    unit: "cm",
+    required: false,
+    includeInCurrent: true,
+  },
+  {
+    fieldId: "plant.created.bed.width",
+    label: "Ширина места",
+    canonicalPath: "bed.width",
+    semanticKind: RegistrySemanticKind.length,
+    patternKey: "length.cm.decimal.v1",
+    unit: "cm",
+    required: false,
+    includeInCurrent: true,
+  },
+  {
+    fieldId: "plant.created.bed.height",
+    label: "Длина места",
+    canonicalPath: "bed.height",
+    semanticKind: RegistrySemanticKind.length,
+    patternKey: "length.cm.decimal.v1",
+    unit: "cm",
+    required: false,
+    includeInCurrent: true,
   },
   {
     fieldId: "plant.created.period",
@@ -322,8 +537,17 @@ const PLANT_CREATED_FIELD_SPECS: TFieldSeed[] = [
     includeInCurrent: true,
     formatJson: {
       mode: "select",
-      options: ["germination", "vegetation", "bloom", "harvest"],
+      options: ["germination", "vegetation", "bloom", "preharvest", "harvest"],
     },
+  },
+  {
+    fieldId: "plant.created.planting.date",
+    label: "Дата посадки",
+    canonicalPath: "planting.date",
+    valueType: RegistryValueType.date,
+    semanticKind: RegistrySemanticKind.generic,
+    required: false,
+    includeInCurrent: true,
   },
   {
     fieldId: "plant.created.notes",
@@ -340,9 +564,14 @@ const PLANT_CREATED_ACTION_PATH_MAPPING = {
   name: { currentKey: "name", is_state_field: true },
   itemLabel: { currentKey: "itemLabel", is_state_field: true },
   productId: { currentKey: "productId", is_state_field: true },
-  potType: { currentKey: "potType", is_state_field: true },
-  potSize: { currentKey: "potSize", is_state_field: true },
+  "pot.type": { currentKey: "pot.type", is_state_field: true },
+  "pot.size": { currentKey: "pot.size", is_state_field: true },
+  "pot.width": { currentKey: "pot.width", is_state_field: true },
+  "pot.height": { currentKey: "pot.height", is_state_field: true },
+  "bed.width": { currentKey: "bed.width", is_state_field: true },
+  "bed.height": { currentKey: "bed.height", is_state_field: true },
   period: { currentKey: "period", is_state_field: true },
+  "planting.date": { currentKey: "planting.date", is_state_field: true },
   notes: { currentKey: "notes", is_state_field: true },
 } as const;
 
@@ -374,6 +603,11 @@ const DIARY_SETUP_CONFIG_FIELD_SPECS: TFieldSeed[] = [
     },
   },
 ];
+
+const DIARY_SETUP_CONFIG_ACTION_PATH_MAPPING = {
+  "diary.wateringType": { currentKey: "watering_type", is_state_field: true },
+  "diary.roomType": { currentKey: "room_type", is_state_field: true },
+} as const;
 
 const LOCATION_INDOOR_EQUIPMENT_FIELD_SPECS: TFieldSeed[] = [
   {
@@ -893,6 +1127,149 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
     skipDuplicates: true,
   });
 
+  const plantEventExtensionFieldIdByKey = new Map<string, string>();
+
+  for (const field of PLANT_EVENT_EXTENSION_FIELD_SPECS) {
+    const pattern = field.patternKey
+      ? await prisma.registryFieldPattern.findUnique({
+          where: { key: field.patternKey },
+          select: { id: true, valueType: true },
+        })
+      : null;
+
+    const saved = await prisma.registryFieldSpec.upsert({
+      where: { fieldId: field.fieldId },
+      create: {
+        fieldId: field.fieldId,
+        entity: "Plant",
+        label: field.label,
+        valueType: pattern?.valueType ?? field.valueType ?? RegistryValueType.number,
+        semanticKind: field.semanticKind,
+        unit: field.unit,
+        canonicalPath: field.canonicalPath,
+        required: field.required ?? false,
+        includeInCurrent: field.includeInCurrent ?? false,
+        formatJson: toInputJsonValue(field.formatJson),
+        constraintsJson: toInputJsonValue(field.constraintsJson),
+        fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
+      },
+      update: {
+        label: field.label,
+        valueType: pattern?.valueType ?? field.valueType ?? RegistryValueType.number,
+        semanticKind: field.semanticKind,
+        unit: field.unit,
+        canonicalPath: field.canonicalPath,
+        required: field.required ?? false,
+        includeInCurrent: field.includeInCurrent ?? false,
+        formatJson: toInputJsonValue(field.formatJson),
+        constraintsJson: toInputJsonValue(field.constraintsJson),
+        fieldPatternId: pattern?.id,
+        status: RegistryFieldSpecStatus.active,
+      },
+      select: { id: true, fieldId: true },
+    });
+
+    plantEventExtensionFieldIdByKey.set(saved.fieldId, saved.id);
+  }
+
+  const plantEventWriteProfiles: Array<{
+    key: string;
+    title: string;
+    description: string;
+    fieldIds: string[];
+    requiredFieldId?: string;
+  }> = [
+    {
+      key: CLIMATE_OBSERVATION_PROFILE_KEY,
+      title: "Climate observation event v1",
+      description: "Plant environment climate observation (plant.environment.climate_observation).",
+      fieldIds: [
+        "plant.climate.temperature",
+        "plant.climate.humidity",
+        "plant.climate.light_schedule_hours",
+        "plant.climate.notes",
+      ],
+    },
+    {
+      key: SIZE_OBSERVATION_PROFILE_KEY,
+      title: "Size observation event v1",
+      description: "Plant size observation (plant.environment.size_observation).",
+      fieldIds: ["plant.observation.height_mm", "plant.observation.notes"],
+      requiredFieldId: "plant.observation.height_mm",
+    },
+    {
+      key: HEALTH_TREATMENT_PROFILE_KEY,
+      title: "Health treatment event v1",
+      description: "Plant health treatment (plant.health.treatment).",
+      fieldIds: [
+        "plant.treatment.product",
+        "plant.treatment.method",
+        "plant.treatment.notes",
+      ],
+      requiredFieldId: "plant.treatment.product",
+    },
+    {
+      key: PERIOD_CHANGE_PROFILE_KEY,
+      title: "Period change event v1",
+      description: "Plant growth period change (plant.growth.period_change).",
+      fieldIds: ["plant.period.phase", "plant.period.period_days"],
+      requiredFieldId: "plant.period.phase",
+    },
+  ];
+
+  const plantEventExtensionProfileKeys: string[] = [];
+
+  for (const profileDef of plantEventWriteProfiles) {
+    const fieldSpecIds = profileDef.fieldIds.map((fieldId) => {
+      const id = plantEventExtensionFieldIdByKey.get(fieldId);
+      if (!id) {
+        throw new Error(`Missing field spec id for ${fieldId}`);
+      }
+      return id;
+    });
+
+    const eventProfile = await prisma.registryProfile.upsert({
+      where: { key: profileDef.key },
+      create: {
+        key: profileDef.key,
+        entity: "Plant",
+        kind: RegistryProfileKind.event_write,
+        title: profileDef.title,
+        description: profileDef.description,
+        version: 1,
+        isActive: true,
+      },
+      update: {
+        entity: "Plant",
+        kind: RegistryProfileKind.event_write,
+        title: profileDef.title,
+        description: profileDef.description,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    await prisma.registryProfileField.deleteMany({
+      where: { profileId: eventProfile.id },
+    });
+
+    await prisma.registryProfileField.createMany({
+      data: fieldSpecIds.map((fieldSpecId, index) => ({
+        profileId: eventProfile.id,
+        fieldSpecId,
+        position: index,
+        required:
+          profileDef.requiredFieldId != null
+            ? profileDef.fieldIds[index] === profileDef.requiredFieldId
+            : index === 0,
+      })),
+      skipDuplicates: true,
+    });
+
+    plantEventExtensionProfileKeys.push(profileDef.key);
+  }
+
   const commonGroup = await prisma.actionPathRegistryGroup.upsert({
     where: { path: "common" },
     create: {
@@ -927,6 +1304,40 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
     },
   });
 
+  const diarySetupGroup = await prisma.actionPathRegistryGroup.upsert({
+    where: { path: "diary.setup" },
+    create: {
+      path: "diary.setup",
+      description: "Diary setup events",
+      order: 20,
+    },
+    update: {
+      description: "Diary setup events",
+    },
+    select: { id: true },
+  });
+
+  await prisma.actionPathRegistry.upsert({
+    where: { actionPath: DIARY_SETUP_CONFIG_ACTION_PATH },
+    create: {
+      actionPath: DIARY_SETUP_CONFIG_ACTION_PATH,
+      description: "Diary setup config (watering type, room type)",
+      targetType: "Diary",
+      mapping: DIARY_SETUP_CONFIG_ACTION_PATH_MAPPING as unknown as Prisma.InputJsonValue,
+      autoTagRules: [],
+      conditions: Prisma.JsonNull,
+      schema: Prisma.JsonNull,
+      groupId: diarySetupGroup.id,
+      position: 0,
+    },
+    update: {
+      description: "Diary setup config (watering type, room type)",
+      targetType: "Diary",
+      mapping: DIARY_SETUP_CONFIG_ACTION_PATH_MAPPING as unknown as Prisma.InputJsonValue,
+      groupId: diarySetupGroup.id,
+    },
+  });
+
   const legacyFieldSpecs = await prisma.registryFieldSpec.findMany({
     where: { fieldId: { in: [...LEGACY_WATERING_FIELD_IDS] } },
     select: { id: true },
@@ -948,6 +1359,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
     patterns: FIELD_PATTERNS.length,
     fields:
       PLANT_FIELD_SPECS.length +
+      PLANT_EVENT_EXTENSION_FIELD_SPECS.length +
       LOCATION_INDOOR_EQUIPMENT_FIELD_SPECS.length +
       DIARY_SETUP_CONFIG_FIELD_SPECS.length +
       PLANT_CREATED_FIELD_SPECS.length,
@@ -959,6 +1371,7 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
       LOCATION_INDOOR_EQUIPMENT_PROFILE_KEY,
       DIARY_SETUP_CONFIG_PROFILE_KEY,
       PLANT_CREATED_PROFILE_KEY,
+      ...plantEventExtensionProfileKeys,
     ],
     plantCreatedActionPath: PLANT_CREATED_ACTION_PATH,
   };

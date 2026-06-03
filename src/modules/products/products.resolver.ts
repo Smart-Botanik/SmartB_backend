@@ -38,6 +38,7 @@ export class ProductsResolver {
       category: string;
       brandId: string;
       avatarMediaId?: string | null;
+      taxonomyTagIds?: string[] | null;
     },
   ) {
     return this.productsService.create({
@@ -45,6 +46,7 @@ export class ProductsResolver {
       category: input.category,
       brandId: input.brandId,
       avatarMediaId: input.avatarMediaId,
+      taxonomyTagIds: input.taxonomyTagIds,
     });
   }
 
@@ -59,6 +61,7 @@ export class ProductsResolver {
       category?: string | null;
       brandId?: string | null;
       avatarMediaId?: string | null;
+      taxonomyTagIds?: string[] | null;
     },
   ) {
     return this.productsService.update({
@@ -67,6 +70,7 @@ export class ProductsResolver {
       category: input.category,
       brandId: input.brandId,
       avatarMediaId: input.avatarMediaId,
+      taxonomyTagIds: input.taxonomyTagIds,
     });
   }
 

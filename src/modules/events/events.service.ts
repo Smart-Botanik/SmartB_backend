@@ -7,6 +7,7 @@ import {
 import { Prisma } from "@prisma/client";
 import { Role, validateAutoTagRulesInput } from "@growing/contracts";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { DiaryProjectorService } from "./diary-projector.service";
 import { LocationProjectorService } from "./location-projector.service";
 import { PlantProjectorService } from "./plant-projector.service";
 
@@ -21,6 +22,10 @@ type RuntimeEvent = {
   registrySnapshot?: unknown;
   payloadSchemaVersion?: string | null;
 };
+
+const USER_EVENT_TARGET_TYPES = ["Plant", "Diary", "Location"] as const;
+
+type UserEventTargetType = (typeof USER_EVENT_TARGET_TYPES)[number];
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -37,6 +42,10 @@ function parseJsonObject(input: string, errorMessage: string): JsonObject {
     throw new BadRequestException(errorMessage);
   }
   return parsed;
+}
+
+function isUserEventTargetType(value: string): value is UserEventTargetType {
+  return (USER_EVENT_TARGET_TYPES as readonly string[]).includes(value);
 }
 
 type MappingEntry = {
@@ -369,6 +378,7 @@ export class EventsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly diaryProjector: DiaryProjectorService,
     private readonly plantProjector: PlantProjectorService,
     private readonly locationProjector: LocationProjectorService,
   ) {}
@@ -515,6 +525,8 @@ export class EventsService {
   }
 
   async listEvents(params: {
+    userId: string;
+    userRole: Role;
     limit?: number;
     offset?: number;
     targetType?: string;
@@ -525,11 +537,17 @@ export class EventsService {
     const limit = params.limit ?? 50;
     const offset = params.offset ?? 0;
 
+    const ownerWhere = await this.buildUserEventOwnerWhere(params);
+    if (ownerWhere === null) {
+      return { items: [], total: 0 };
+    }
+
     const where: Prisma.EventWhereInput = {
       ...(params.targetType ? { targetType: params.targetType } : {}),
       ...(params.targetId ? { targetId: params.targetId } : {}),
       ...(params.actionPath ? { actionPath: params.actionPath } : {}),
       ...(params.isSystem !== undefined ? { isSystem: params.isSystem } : {}),
+      ...ownerWhere,
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -543,6 +561,80 @@ export class EventsService {
     ]);
 
     return { items, total };
+  }
+
+  private async buildUserEventOwnerWhere(params: {
+    userId: string;
+    userRole: Role;
+    targetType?: string;
+    targetId?: string;
+  }): Promise<Prisma.EventWhereInput | null> {
+    if (params.userRole === Role.ADMIN) {
+      return {};
+    }
+
+    const requestedTypes = params.targetType
+      ? [params.targetType]
+      : USER_EVENT_TARGET_TYPES;
+
+    const unsupportedType = requestedTypes.find(
+      (targetType) => !isUserEventTargetType(targetType),
+    );
+    if (unsupportedType) {
+      return null;
+    }
+
+    const clauses: Prisma.EventWhereInput[] = [];
+
+    for (const targetType of requestedTypes as UserEventTargetType[]) {
+      const ids = await this.findOwnedEventTargetIds({
+        userId: params.userId,
+        targetType,
+        targetId: params.targetId,
+      });
+
+      if (ids.length > 0) {
+        clauses.push({ targetType, targetId: { in: ids } });
+      }
+    }
+
+    if (clauses.length === 0) {
+      return null;
+    }
+
+    return { OR: clauses };
+  }
+
+  private async findOwnedEventTargetIds(params: {
+    userId: string;
+    targetType: UserEventTargetType;
+    targetId?: string;
+  }): Promise<string[]> {
+    const idFilter = params.targetId ? { id: params.targetId } : {};
+
+    switch (params.targetType) {
+      case "Plant": {
+        const rows = await this.prisma.plant.findMany({
+          where: { userId: params.userId, ...idFilter },
+          select: { id: true },
+        });
+        return rows.map((row) => row.id);
+      }
+      case "Diary": {
+        const rows = await this.prisma.diary.findMany({
+          where: { userId: params.userId, ...idFilter },
+          select: { id: true },
+        });
+        return rows.map((row) => row.id);
+      }
+      case "Location": {
+        const rows = await this.prisma.location.findMany({
+          where: { userId: params.userId, ...idFilter },
+          select: { id: true },
+        });
+        return rows.map((row) => row.id);
+      }
+    }
   }
 
   async listRegistries(params: {
@@ -889,6 +981,78 @@ export class EventsService {
       where: { id: params.locationId },
     });
     return updatedLocation ?? location;
+  }
+
+  async createDiaryEvent(params: {
+    userId: string;
+    userRole: Role;
+    diaryId: string;
+    actionPath: string;
+    payloadJson: string;
+    isSystem?: boolean;
+  }) {
+    const diary = await this.prisma.diary.findUnique({
+      where: { id: params.diaryId },
+    });
+    if (!diary) {
+      throw new NotFoundException("Diary not found");
+    }
+    if (diary.userId !== params.userId && params.userRole !== Role.ADMIN) {
+      throw new ForbiddenException("Diary does not belong to the current user");
+    }
+
+    const payload = parseJsonObject(
+      params.payloadJson,
+      "Invalid payloadJson: expected JSON object",
+    );
+
+    const registry = await this.prisma.actionPathRegistry.findUnique({
+      where: { actionPath: params.actionPath },
+    });
+
+    if (registry && registry.targetType !== "Diary") {
+      throw new BadRequestException(
+        `Registry targetType mismatch for actionPath=${params.actionPath}`,
+      );
+    }
+
+    validatePayloadAgainstSchema({
+      payload,
+      schema: (registry as unknown as { schema?: unknown } | null)?.schema,
+      actionPath: params.actionPath,
+    });
+
+    const createdEvent = (await this.prisma.event.create({
+      data: {
+        actionPath: params.actionPath,
+        targetType: "Diary",
+        targetId: params.diaryId,
+        payload: payload as unknown as Prisma.InputJsonValue,
+        registryVersion: registry ? this.buildRegistryVersion(registry) : null,
+        registrySnapshot: registry
+          ? ({
+              mapping: registry.mapping,
+              schema: registry.schema ?? null,
+              targetType: registry.targetType,
+              actionPath: registry.actionPath,
+            } as unknown as Prisma.InputJsonValue)
+          : null,
+        payloadSchemaVersion: this.extractPayloadSchemaVersion(
+          (registry as unknown as { schema?: unknown } | null)?.schema,
+        ),
+        handlerVersion: DiaryProjectorService.HANDLER_VERSION,
+        isSystem: params.isSystem ?? false,
+      } as any,
+    })) as unknown as RuntimeEvent;
+
+    if (this.syncProjectorEnabled || this.projectionOnlyMode) {
+      await this.diaryProjector.projectEventToDiaryCurrent(createdEvent);
+    }
+
+    const updatedDiary = await this.prisma.diary.findUnique({
+      where: { id: params.diaryId },
+    });
+    return updatedDiary ?? diary;
   }
 
   private buildRegistryVersion(registry: {

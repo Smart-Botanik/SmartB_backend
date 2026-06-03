@@ -326,6 +326,7 @@ model Diary {
   title     String?
   body      String
   summarize String?  @default("")
+  current   Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -335,6 +336,15 @@ model Diary {
   locations    Location[]   @relation("DiaryLocations")
 
   @@index([userId])
+}
+
+model DiaryProjectionCheckpoint {
+  id        String   @id @default(cuid())
+  diaryId   String
+  eventId   String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([diaryId, createdAt])
 }
 
 model Media {
@@ -349,8 +359,9 @@ model Media {
   height    Int?
   createdAt DateTime @default(now())
 
-  brandAvatarFor   Brand?   @relation("BrandAvatar")
-  productAvatarFor Product? @relation("ProductAvatar")
+  brandAvatarFor   Brand?      @relation("BrandAvatar")
+  productAvatarFor Product?    @relation("ProductAvatar")
+  guideCovers      CropGuide[] @relation("GuideCover")
 
   @@index([provider])
   @@index([bucket])
@@ -372,6 +383,59 @@ model Brand {
   @@index([name])
 }
 
+enum TaxonomyTagNamespace {
+  CROP
+  CROP_VARIANT
+  TOPIC
+  PRODUCT_USE
+}
+
+enum TaxonomyTagStatus {
+  ACTIVE
+  DEPRECATED
+}
+
+/// Top-level taxonomy partition (e.g. crop, guides) — configured in admin.
+model TaxonomyScope {
+  key         String        @id
+  label       String
+  description String?
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  nodes       TaxonomyTag[]
+}
+
+/// Catalog taxonomy node — not runtime event Tag.
+model TaxonomyTag {
+  id          String               @id @default(cuid())
+  scopeKey    String
+  key         String               @unique
+  namespace   TaxonomyTagNamespace
+  label       String
+  sortOrder   Int                  @default(0)
+  parentId    String?
+  cropKind    CropKind?
+  variantAxis String?
+  status      TaxonomyTagStatus    @default(ACTIVE)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  scope    TaxonomyScope @relation(fields: [scopeKey], references: [key], onDelete: Restrict)
+  parent   TaxonomyTag?  @relation("TaxonomyTagTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children TaxonomyTag[] @relation("TaxonomyTagTree")
+
+  products Product[]   @relation("ProductTaxonomyTags")
+  guides   CropGuide[] @relation("GuideTaxonomyTags")
+
+  @@index([scopeKey])
+  @@index([namespace])
+  @@index([key])
+  @@index([parentId])
+  @@index([cropKind])
+  @@index([status])
+}
+
 model Product {
   id            String   @id @default(cuid())
   name          String
@@ -384,6 +448,7 @@ model Product {
 
   brand                      Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
   avatar                     Media?                   @relation("ProductAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  taxonomyTags               TaxonomyTag[]            @relation("ProductTaxonomyTags")
   locationSpecEnclosures LocationSpecsEnclosure[]
 
   @@index([brandId])
@@ -536,4 +601,65 @@ model LocationSpecsArea {
   depth       Float?
 
   specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+}
+
+// --- Public site content (SITE-1) ------------------------------------------
+
+enum CropKind {
+  TOMATO
+  ZUCCHINI
+  EGGPLANT
+  CUCUMBER
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// SEO guide page for a crop (admin CRUD, public read when PUBLISHED).
+model CropGuide {
+  id             String        @id @default(cuid())
+  cropKind       CropKind
+  slug           String        @unique
+  title          String
+  excerpt        String?
+  body           Json          @default("[]")
+  bodySiteMd     String        @default("") @db.Text
+  bodyTelegramMd String        @default("") @db.Text
+  coverMediaId   String?
+  status         ContentStatus @default(DRAFT)
+  publishedAt    DateTime?
+  seoTitle       String?
+  seoDescription String?
+  sortOrder      Int           @default(0)
+  telegramPublishedAt DateTime?
+  telegramMessageId   String?
+  telegramPostUrl     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  coverMedia Media? @relation("GuideCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  taxonomyTags TaxonomyTag[] @relation("GuideTaxonomyTags")
+
+  @@index([cropKind])
+  @@index([status])
+  @@index([sortOrder])
+}
+
+/// Editable site page (e.g. home landing sections).
+model SitePage {
+  id             String        @id @default(cuid())
+  key            String        @unique
+  title          String
+  sections       Json          @default("[]")
+  status         ContentStatus @default(DRAFT)
+  publishedAt    DateTime?
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([status])
 }

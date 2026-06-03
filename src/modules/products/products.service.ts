@@ -3,11 +3,21 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { TaxonomyTagService } from "../content/taxonomy-tag.service";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+
+const productInclude = {
+  avatar: true,
+  brand: { include: { avatar: true } },
+  taxonomyTags: { orderBy: { sortOrder: "asc" as const } },
+} as const;
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly taxonomyTagService: TaxonomyTagService,
+  ) {}
 
   private async assertBrandExists(brandId: string) {
     const brand = await this.prisma.brand.findUnique({ where: { id: brandId } });
@@ -45,7 +55,7 @@ export class ProductsService {
         orderBy: { name: "asc" },
         take: params.limit ?? undefined,
         skip: params.offset ?? undefined,
-        include: { avatar: true, brand: { include: { avatar: true } } },
+        include: productInclude,
       }),
     ]);
 
@@ -55,7 +65,7 @@ export class ProductsService {
   async getById(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
-      include: { avatar: true, brand: { include: { avatar: true } } },
+      include: productInclude,
     });
     if (!product) {
       throw new NotFoundException("Product not found");
@@ -68,19 +78,31 @@ export class ProductsService {
     category: string;
     brandId: string;
     avatarMediaId?: string | null;
+    taxonomyTagIds?: string[] | null;
   }) {
     await this.assertBrandExists(params.brandId);
     if (params.avatarMediaId) {
       await this.assertAvatarMediaId(params.avatarMediaId);
     }
+    const taxonomyTags = await this.taxonomyTagService.connectByIds(params.taxonomyTagIds, {
+      requireCropRoot: Boolean(params.taxonomyTagIds?.length),
+    });
+
     return this.prisma.product.create({
       data: {
         name: params.name,
         category: params.category,
         brandId: params.brandId,
         ...(params.avatarMediaId && { avatarMediaId: params.avatarMediaId }),
+        ...(taxonomyTags
+          ? {
+              taxonomyTags: {
+                connect: taxonomyTags.set.map(tag => ({ id: tag.id })),
+              },
+            }
+          : {}),
       },
-      include: { avatar: true, brand: { include: { avatar: true } } },
+      include: productInclude,
     });
   }
 
@@ -90,6 +112,7 @@ export class ProductsService {
     category?: string | null;
     brandId?: string | null;
     avatarMediaId?: string | null;
+    taxonomyTagIds?: string[] | null;
   }) {
     await this.getById(params.id);
 
@@ -100,6 +123,10 @@ export class ProductsService {
       await this.assertAvatarMediaId(params.avatarMediaId);
     }
 
+    const taxonomyTags = await this.taxonomyTagService.connectByIds(params.taxonomyTagIds, {
+      requireCropRoot: Boolean(params.taxonomyTagIds?.length),
+    });
+
     return this.prisma.product.update({
       where: { id: params.id },
       data: {
@@ -107,8 +134,9 @@ export class ProductsService {
         category: params.category ?? undefined,
         brandId: params.brandId ?? undefined,
         avatarMediaId: params.avatarMediaId === null ? null : params.avatarMediaId ?? undefined,
+        ...(taxonomyTags ? { taxonomyTags } : {}),
       },
-      include: { avatar: true, brand: { include: { avatar: true } } },
+      include: productInclude,
     });
   }
 
