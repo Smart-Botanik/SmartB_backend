@@ -126,9 +126,6 @@ export class TaxonomyTagService {
       params.parentId ?? null,
       scopeKey,
     );
-    if (params.namespace === TaxonomyTagNamespace.CROP && !params.cropKind) {
-      throw new BadRequestException("cropKind is required for CROP namespace");
-    }
     if (!key.startsWith(`${scopeKey}.`) && key !== scopeKey) {
       throw new BadRequestException(`key must start with "${scopeKey}."`);
     }
@@ -349,13 +346,9 @@ export class TaxonomyTagService {
         throw new BadRequestException("parentId is required for CROP_VARIANT");
       }
       const parent = await this.taxonomyRepo.findTagForParentCheck(parentId);
-      if (
-        !parent ||
-        parent.namespace !== TaxonomyTagNamespace.CROP ||
-        parent.scopeKey !== scopeKey
-      ) {
+      if (!parent || parent.scopeKey !== scopeKey) {
         throw new BadRequestException(
-          "CROP_VARIANT parent must be a CROP tag in the same scope",
+          "CROP_VARIANT parent must be in the same scope",
         );
       }
       return;

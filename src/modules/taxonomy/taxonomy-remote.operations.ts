@@ -1,3 +1,40 @@
+/** Поля для taxonomyForest — без legacy cropKind. */
+export const TAXONOMY_TAG_FOREST_FIELDS = `
+  id
+  scopeKey
+  key
+  namespace
+  label
+  sortOrder
+  parentId
+  variantAxis
+  status
+  createdAt
+  updatedAt
+  children {
+    id
+    scopeKey
+    key
+    namespace
+    label
+    sortOrder
+    parentId
+    variantAxis
+    status
+    children {
+      id
+      scopeKey
+      key
+      namespace
+      label
+      sortOrder
+      parentId
+      variantAxis
+      status
+    }
+  }
+`;
+
 export const TAXONOMY_TAG_FIELDS = `
   id
   scopeKey
@@ -82,7 +119,7 @@ export const QUERY_TAXONOMY_TAGS = `
 export const QUERY_TAXONOMY_FOREST = `
   query TaxonomyForest($scopeKey: String!, $status: TaxonomyTagStatus) {
     taxonomyForest(scopeKey: $scopeKey, status: $status) {
-      ${TAXONOMY_TAG_FIELDS}
+      ${TAXONOMY_TAG_FOREST_FIELDS}
     }
   }
 `;
