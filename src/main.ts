@@ -26,7 +26,7 @@ async function bootstrap() {
       );
 
       if (isLocalhost || (nodeEnv !== "production" && isLanDev)) {
-        callback(null, true);
+        callback(null, origin);
         return;
       }
 
