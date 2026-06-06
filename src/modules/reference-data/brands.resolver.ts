@@ -5,7 +5,7 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { BrandsService } from "./brands.service";
-import { BrandCategory } from "@prisma/client";
+import type { BrandCategoryValue } from "./reference-data.types";
 
 @Resolver("Brand")
 export class BrandsResolver {
@@ -20,19 +20,19 @@ export class BrandsResolver {
     @Args("query", { nullable: true }) query?: string,
     @Args("category", { nullable: true }) category?: string,
   ) {
-    let categoryEnum: BrandCategory | null = null;
+    let categoryEnum: BrandCategoryValue | null = null;
     if (category) {
       const raw = category.trim();
       const lower = raw.toLowerCase();
-      const categoryMap: Record<string, BrandCategory> = {
-        breader: BrandCategory.BREADER,
-        tent: BrandCategory.TENT,
-        lamp: BrandCategory.LAMP,
-        common: BrandCategory.COMMON,
-        BREADER: BrandCategory.BREADER,
-        TENT: BrandCategory.TENT,
-        LAMP: BrandCategory.LAMP,
-        COMMON: BrandCategory.COMMON,
+      const categoryMap: Record<string, BrandCategoryValue> = {
+        breader: "BREADER",
+        tent: "TENT",
+        lamp: "LAMP",
+        common: "COMMON",
+        BREADER: "BREADER",
+        TENT: "TENT",
+        LAMP: "LAMP",
+        COMMON: "COMMON",
       };
       categoryEnum = categoryMap[raw] ?? categoryMap[lower] ?? null;
     }

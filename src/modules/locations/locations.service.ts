@@ -11,20 +11,32 @@ import {
   Prisma,
 } from "@prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { ProductsService } from "../reference-data/products.service";
 
 /** GraphQL / Prisma — вложенные блоки specs + связи для ответа */
 export const locationGraphqlInclude = {
+  parent: true,
+  children: { orderBy: { name: "asc" as const } },
   plants: { orderBy: { createdAt: "desc" as const } },
   diaries: { orderBy: { createdAt: "desc" as const } },
+  cultivationUnitPlacements: {
+    orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
+    include: {
+      cultivationUnit: {
+        include: {
+          specBlocks: {
+            orderBy: { position: "asc" as const },
+            include: { lighting: true, enclosure: true, space: true, area: true },
+          },
+        },
+      },
+    },
+  },
   specBlocks: {
     orderBy: { position: "asc" as const },
     include: {
       lighting: true,
-      enclosure: {
-        include: {
-          product: { include: { brand: true, avatar: true } },
-        },
-      },
+      enclosure: true,
       space: true,
       area: true,
     },
@@ -163,7 +175,10 @@ function buildSpecBlockCreates(
 
 @Injectable()
 export class LocationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly productsService: ProductsService,
+  ) {}
 
   private async assertDiariesOwnedByUser(userId: string, diaryIds: string[]) {
     if (diaryIds.length === 0) return;
@@ -177,10 +192,37 @@ export class LocationsService {
   }
 
   private async assertProductExists(productId: string) {
-    const p = await this.prisma.product.findUnique({ where: { id: productId } });
-    if (!p) {
+    try {
+      await this.productsService.getById(productId);
+    } catch {
       throw new BadRequestException("enclosure.productId: product not found");
     }
+  }
+
+  private async assertParentLocation(params: {
+    userId: string;
+    parentLocationId: string;
+    locationId?: string;
+  }) {
+    if (params.locationId && params.parentLocationId === params.locationId) {
+      throw new BadRequestException("parentLocationId cannot equal location id");
+    }
+    const parent = await this.getByIdBare({
+      userId: params.userId,
+      id: params.parentLocationId,
+    });
+    if (params.locationId) {
+      let cursor: typeof parent | null = parent;
+      while (cursor?.parentLocationId) {
+        if (cursor.parentLocationId === params.locationId) {
+          throw new BadRequestException("parentLocationId would create a cycle");
+        }
+        cursor = await this.prisma.location.findUnique({
+          where: { id: cursor.parentLocationId },
+        });
+      }
+    }
+    return parent;
   }
 
   private async validateSpecBlocksForCreate(blocks: LocationSpecBlockInput[] | undefined) {
@@ -230,6 +272,7 @@ export class LocationsService {
   async create(params: {
     userId: string;
     name: string;
+    parentLocationId?: string | null;
     status?: "active" | "archived" | null;
     type?: LocationType | null;
     subType?: LocationSubType | null;
@@ -249,11 +292,20 @@ export class LocationsService {
     await this.validateSpecBlocksForCreate(blocks);
     const diaryIds = params.diaryIds ?? [];
     await this.assertDiariesOwnedByUser(params.userId, diaryIds);
+    if (params.parentLocationId) {
+      await this.assertParentLocation({
+        userId: params.userId,
+        parentLocationId: params.parentLocationId,
+      });
+    }
 
     return this.prisma.location.create({
       data: {
         userId: params.userId,
         name: params.name,
+        ...(params.parentLocationId !== undefined && {
+          parentLocationId: params.parentLocationId,
+        }),
         ...(params.status != null && { status: params.status }),
         ...(params.type !== undefined && { type: params.type }),
         ...(params.subType !== undefined && { subType: params.subType }),
@@ -276,6 +328,7 @@ export class LocationsService {
     userId: string;
     id: string;
     name?: string | null;
+    parentLocationId?: string | null;
     status?: "active" | "archived" | null;
     type?: LocationType | null;
     subType?: LocationSubType | null;
@@ -296,6 +349,14 @@ export class LocationsService {
       await this.assertDiariesOwnedByUser(params.userId, params.diaryIds);
     }
 
+    if (params.parentLocationId) {
+      await this.assertParentLocation({
+        userId: params.userId,
+        parentLocationId: params.parentLocationId,
+        locationId: params.id,
+      });
+    }
+
     if (params.specBlocks != null) {
       for (const b of params.specBlocks) assertSpecBlockPayload(b.kind, b);
       assertDistinctPositions(params.specBlocks);
@@ -308,6 +369,9 @@ export class LocationsService {
 
     const scalarData: Prisma.LocationUpdateInput = {
       ...(params.name !== undefined && { name: params.name ?? undefined }),
+      ...(params.parentLocationId !== undefined && {
+        parentLocationId: params.parentLocationId,
+      }),
       ...(params.status !== undefined && { status: params.status ?? undefined }),
       ...(params.type !== undefined && { type: params.type }),
       ...(params.subType !== undefined && { subType: params.subType }),

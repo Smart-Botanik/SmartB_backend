@@ -12,19 +12,13 @@ datasource db {
 // - Role: только USER | ADMIN (совпадает с JWT/контрактами; при расхождении с БД — отдельная миграция enum).
 // - Location: владелец userId, статусы/типы Strapi-совместимые, specs (блоки lighting,
 //   enclosure, space, area), связи Plant.locationId и M2M Diary↔Location.
-// - Подробности домена: memory/locations/main.md в корневом репозитории.
+// - CultivationUnit (ADR-0011): среда выращивания; Location — контейнер + parentLocationId.
+// - Подробности: memory/locations/main.md, ADR-0011.
 // =============================================================================
 
 enum Role {
   USER
   ADMIN
-}
-
-enum BrandCategory {
-  BREADER
-  TENT
-  LAMP
-  COMMON
 }
 
 model User {
@@ -36,10 +30,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  plants       Plant[]
-  plantGroups  PlantGroup[]
-  diaries      Diary[]
-  locations    Location[]
+  plants            Plant[]
+  plantGroups       PlantGroup[]
+  diaries           Diary[]
+  locations         Location[]
+  cultivationUnits  CultivationUnit[]
 }
 
 enum PlantGroupStatus {
@@ -66,25 +61,29 @@ model PlantGroup {
 }
 
 model Plant {
-  id         String   @id @default(cuid())
-  userId     String
-  diaryId    String?
-  locationId String?
-  groupId    String?
-  name       String
-  summarize  String?  @default("")
-  current    Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                            String   @id @default(cuid())
+  userId                        String
+  diaryId                       String?
+  locationId                    String?
+  cultivationUnitId             String?
+  cultivationUnitNudgeDismissed Boolean  @default(false)
+  groupId                       String?
+  name                          String
+  summarize                     String?  @default("")
+  current                       Json?
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
 
-  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  diary    Diary?       @relation(fields: [diaryId], references: [id], onDelete: SetNull)
-  location Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  group    PlantGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  diary             Diary?            @relation(fields: [diaryId], references: [id], onDelete: SetNull)
+  location          Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  cultivationUnit   CultivationUnit?  @relation(fields: [cultivationUnitId], references: [id], onDelete: SetNull)
+  group             PlantGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([diaryId])
   @@index([locationId])
+  @@index([cultivationUnitId])
   @@index([groupId])
 }
 
@@ -330,10 +329,11 @@ model Diary {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plants       Plant[]
-  plantGroups  PlantGroup[]
-  locations    Location[]   @relation("DiaryLocations")
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plants            Plant[]
+  plantGroups       PlantGroup[]
+  locations         Location[]        @relation("DiaryLocations")
+  cultivationUnits  CultivationUnit[] @relation("DiaryCultivationUnits")
 
   @@index([userId])
 }
@@ -359,101 +359,21 @@ model Media {
   height    Int?
   createdAt DateTime @default(now())
 
-  brandAvatarFor   Brand?      @relation("BrandAvatar")
-  productAvatarFor Product?    @relation("ProductAvatar")
   guideCovers      CropGuide[] @relation("GuideCover")
 
   @@index([provider])
   @@index([bucket])
 }
 
-model Brand {
-  id            String        @id @default(cuid())
-  name          String
-  category      BrandCategory
-  avatarMediaId String?       @unique
-  description   String?       @default("")
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+/// M2M CropGuide ↔ taxonomy tag id (tag rows live in taxonomy-service). BK-MS-TAX-3
+model CropGuideTaxonomyTag {
+  cropGuideId   String
+  taxonomyTagId String
 
-  avatar   Media?    @relation("BrandAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
-  products Product[]
+  cropGuide CropGuide @relation(fields: [cropGuideId], references: [id], onDelete: Cascade)
 
-  @@index([category])
-  @@index([name])
-}
-
-enum TaxonomyTagNamespace {
-  CROP
-  CROP_VARIANT
-  TOPIC
-  PRODUCT_USE
-}
-
-enum TaxonomyTagStatus {
-  ACTIVE
-  DEPRECATED
-}
-
-/// Top-level taxonomy partition (e.g. crop, guides) — configured in admin.
-model TaxonomyScope {
-  key         String        @id
-  label       String
-  description String?
-  sortOrder   Int           @default(0)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  nodes       TaxonomyTag[]
-}
-
-/// Catalog taxonomy node — not runtime event Tag.
-model TaxonomyTag {
-  id          String               @id @default(cuid())
-  scopeKey    String
-  key         String               @unique
-  namespace   TaxonomyTagNamespace
-  label       String
-  sortOrder   Int                  @default(0)
-  parentId    String?
-  cropKind    CropKind?
-  variantAxis String?
-  status      TaxonomyTagStatus    @default(ACTIVE)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-
-  scope    TaxonomyScope @relation(fields: [scopeKey], references: [key], onDelete: Restrict)
-  parent   TaxonomyTag?  @relation("TaxonomyTagTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children TaxonomyTag[] @relation("TaxonomyTagTree")
-
-  products Product[]   @relation("ProductTaxonomyTags")
-  guides   CropGuide[] @relation("GuideTaxonomyTags")
-
-  @@index([scopeKey])
-  @@index([namespace])
-  @@index([key])
-  @@index([parentId])
-  @@index([cropKind])
-  @@index([status])
-}
-
-model Product {
-  id            String   @id @default(cuid())
-  name          String
-  category      String
-  brandId       String
-  avatarMediaId String?  @unique
-  summarize     String?  @default("")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  brand                      Brand                    @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  avatar                     Media?                   @relation("ProductAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
-  taxonomyTags               TaxonomyTag[]            @relation("ProductTaxonomyTags")
-  locationSpecEnclosures LocationSpecsEnclosure[]
-
-  @@index([brandId])
-  @@index([category])
-  @@index([name])
+  @@id([cropGuideId, taxonomyTagId])
+  @@index([taxonomyTagId])
 }
 
 // --- Location (ex Strapi api::location) ------------------------------------
@@ -500,27 +420,33 @@ enum LocationSpecKind {
 }
 
 model Location {
-  id            String                @id @default(cuid())
-  userId        String
-  name          String
-  status        LocationStatus        @default(active)
-  current       Json?
-  type          LocationType?
-  subType       LocationSubType?
-  wateringType  LocationWateringType?
-  description   String?
-  capacity      Int?
-  occupiedSlots Int?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  id               String                @id @default(cuid())
+  userId           String
+  parentLocationId String?
+  name             String
+  status           LocationStatus        @default(active)
+  current          Json?
+  type             LocationType?
+  subType          LocationSubType?
+  wateringType     LocationWateringType?
+  description      String?
+  capacity         Int?
+  occupiedSlots    Int?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
-  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plants     Plant[]
-  diaries    Diary[]             @relation("DiaryLocations")
-  specBlocks LocationSpecBlock[]
+  user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent                    Location?                  @relation("LocationTree", fields: [parentLocationId], references: [id], onDelete: SetNull)
+  children                  Location[]                 @relation("LocationTree")
+  plants                    Plant[]
+  diaries                   Diary[]                    @relation("DiaryLocations")
+  specBlocks                LocationSpecBlock[]
+  primaryCultivationUnits   CultivationUnit[]          @relation("CultivationUnitPrimaryLocation")
+  cultivationUnitPlacements CultivationUnitPlacement[]
 
   @@index([userId])
   @@index([userId, status])
+  @@index([parentLocationId])
 }
 
 model LocationProjectionCheckpoint {
@@ -579,7 +505,6 @@ model LocationSpecsEnclosure {
   depth       Float?
 
   specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
-  product   Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([productId])
 }
@@ -601,6 +526,114 @@ model LocationSpecsArea {
   depth       Float?
 
   specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+}
+
+// --- CultivationUnit (ADR-0011) --------------------------------------------
+
+enum CultivationUnitStatus {
+  active
+  archived
+}
+
+enum CultivationUnitPlacementRole {
+  primary
+  member
+  shared
+}
+
+/// Среда выращивания: тип, слоты, оборудование. UI — «Окружение».
+model CultivationUnit {
+  id                String                 @id @default(cuid())
+  userId            String
+  primaryLocationId String
+  name              String
+  status            CultivationUnitStatus  @default(active)
+  current           Json?
+  type              LocationType?
+  subType           LocationSubType?
+  capacity          Int?
+  occupiedSlots     Int?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primaryLocation Location                   @relation("CultivationUnitPrimaryLocation", fields: [primaryLocationId], references: [id], onDelete: Restrict)
+  placements      CultivationUnitPlacement[]
+  plants          Plant[]
+  diaries         Diary[]                    @relation("DiaryCultivationUnits")
+  specBlocks      CultivationUnitSpecBlock[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([primaryLocationId])
+}
+
+model CultivationUnitPlacement {
+  id                String                       @id @default(cuid())
+  locationId        String
+  cultivationUnitId String
+  role              CultivationUnitPlacementRole @default(member)
+  sortOrder         Int                          @default(0)
+  createdAt         DateTime                     @default(now())
+
+  location        Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  cultivationUnit CultivationUnit @relation(fields: [cultivationUnitId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, cultivationUnitId])
+  @@index([cultivationUnitId])
+}
+
+model CultivationUnitSpecBlock {
+  id                String           @id @default(cuid())
+  cultivationUnitId String
+  position          Int
+  kind              LocationSpecKind
+
+  cultivationUnit CultivationUnit                @relation(fields: [cultivationUnitId], references: [id], onDelete: Cascade)
+  lighting        CultivationUnitSpecsLighting?
+  enclosure       CultivationUnitSpecsEnclosure?
+  space           CultivationUnitSpecsSpace?
+  area            CultivationUnitSpecsArea?
+
+  @@unique([cultivationUnitId, position])
+  @@index([cultivationUnitId])
+}
+
+model CultivationUnitSpecsLighting {
+  specBlockId     String @id
+  vegetationLamps Json?
+  bloomLamps      Json?
+
+  specBlock CultivationUnitSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+}
+
+model CultivationUnitSpecsEnclosure {
+  specBlockId String  @id
+  productId   String?
+  width       Float?
+  height      Float?
+  depth       Float?
+
+  specBlock CultivationUnitSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model CultivationUnitSpecsSpace {
+  specBlockId String @id
+  width       Float?
+  height      Float?
+  depth       Float?
+
+  specBlock CultivationUnitSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+}
+
+model CultivationUnitSpecsArea {
+  specBlockId String @id
+  width       Float?
+  depth       Float?
+
+  specBlock CultivationUnitSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
 }
 
 // --- Public site content (SITE-1) ------------------------------------------
@@ -640,8 +673,8 @@ model CropGuide {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  coverMedia Media? @relation("GuideCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
-  taxonomyTags TaxonomyTag[] @relation("GuideTaxonomyTags")
+  coverMedia     Media?                 @relation("GuideCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  taxonomyLinks  CropGuideTaxonomyTag[]
 
   @@index([cropKind])
   @@index([status])

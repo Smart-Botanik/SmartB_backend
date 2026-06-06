@@ -9,6 +9,7 @@ import {
 } from "@growing/content-markdown";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { TaxonomyTagService } from "../taxonomy/taxonomy-tag.service";
 import { TelegramBotService } from "./telegram-bot.service";
 
 const TELEGRAM_MAX_LENGTH = 4096;
@@ -17,9 +18,26 @@ const TELEGRAM_MAX_LENGTH = 4096;
 export class TelegramGuidePublishService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly taxonomyTagService: TaxonomyTagService,
     private readonly telegramBot: TelegramBotService,
     private readonly configService: ConfigService,
   ) {}
+
+  private async loadGuideTaxonomyTags(guideId: string) {
+    const links = await this.prisma.cropGuideTaxonomyTag.findMany({
+      where: { cropGuideId: guideId },
+    });
+    const tags = await Promise.all(
+      links.map(link => this.taxonomyTagService.getById(link.taxonomyTagId)),
+    );
+    return tags
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          ((a as { sortOrder: number }).sortOrder ?? 0) -
+          ((b as { sortOrder: number }).sortOrder ?? 0),
+      ) as Array<{ key: string; label: string; sortOrder: number }>;
+  }
 
   private getSiteBaseUrl(): string {
     const raw =
@@ -68,14 +86,13 @@ export class TelegramGuidePublishService {
   async publishCropGuide(cropGuideId: string) {
     const guide = await this.prisma.cropGuide.findUnique({
       where: { id: cropGuideId },
-      include: {
-        coverMedia: true,
-        taxonomyTags: { orderBy: { sortOrder: "asc" } },
-      },
+      include: { coverMedia: true },
     });
     if (!guide) {
       throw new NotFoundException("CropGuide not found");
     }
+
+    const taxonomyTags = await this.loadGuideTaxonomyTags(guide.id);
 
     let text = "";
     if (guide.bodyTelegramMd.trim()) {
@@ -91,8 +108,8 @@ export class TelegramGuidePublishService {
     text += this.buildFullArticleLink(guide.slug);
 
     const hashtagTerms =
-      guide.taxonomyTags.length > 0
-        ? guide.taxonomyTags.map(label => ({
+      taxonomyTags.length > 0
+        ? taxonomyTags.map(label => ({
             key: label.key,
             label: label.label,
             sortOrder: label.sortOrder,
@@ -118,10 +135,7 @@ export class TelegramGuidePublishService {
         telegramMessageId: messageId,
         telegramPostUrl: postUrl,
       },
-      include: {
-        coverMedia: true,
-        taxonomyTags: { orderBy: { sortOrder: "asc" } },
-      },
+      include: { coverMedia: true },
     });
 
     return {

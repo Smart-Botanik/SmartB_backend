@@ -31,7 +31,6 @@ import { TaxonomyTagService } from "../taxonomy/taxonomy-tag.service";
 
 const guideInclude = {
   coverMedia: true,
-  taxonomyTags: { orderBy: { sortOrder: "asc" as const } },
 } as const;
 
 @Injectable()
@@ -43,7 +42,59 @@ export class ContentService {
     private readonly taxonomyTagService: TaxonomyTagService,
   ) {}
 
+  private async resolveTaxonomyTagIdsForTermKey(termKey: string): Promise<string[]> {
+    const page = await this.taxonomyTagService.list({
+      query: termKey,
+      limit: 50,
+      offset: 0,
+    });
+    const tag = (page.items as Array<{ id: string; key: string }>).find(
+      item => item.key === termKey,
+    );
+    return tag ? [tag.id] : [];
+  }
 
+  private async termKeyGuideWhere(
+    termKey: string,
+  ): Promise<Prisma.CropGuideWhereInput> {
+    const tagIds = await this.resolveTaxonomyTagIdsForTermKey(termKey);
+    if (tagIds.length === 0) {
+      return { taxonomyLinks: { none: {} } };
+    }
+    return {
+      taxonomyLinks: { some: { taxonomyTagId: { in: tagIds } } },
+    };
+  }
+
+  private async replaceGuideTaxonomyLinks(
+    guideId: string,
+    tagIds: string[],
+  ): Promise<void> {
+    await this.prisma.cropGuideTaxonomyTag.deleteMany({
+      where: { cropGuideId: guideId },
+    });
+    if (tagIds.length > 0) {
+      await this.prisma.cropGuideTaxonomyTag.createMany({
+        data: tagIds.map(taxonomyTagId => ({ cropGuideId: guideId, taxonomyTagId })),
+      });
+    }
+  }
+
+  async resolveCropGuideTaxonomyTags(guideId: string) {
+    const links = await this.prisma.cropGuideTaxonomyTag.findMany({
+      where: { cropGuideId: guideId },
+    });
+    const tags = await Promise.all(
+      links.map(link => this.taxonomyTagService.getById(link.taxonomyTagId)),
+    );
+    return tags
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          ((a as { sortOrder: number }).sortOrder ?? 0) -
+          ((b as { sortOrder: number }).sortOrder ?? 0),
+      );
+  }
 
   private parseJsonString(raw: string, fieldName: string): Prisma.InputJsonValue {
 
@@ -177,17 +228,17 @@ export class ContentService {
 
   }) {
 
+    const termFilter = params.termKey
+      ? await this.termKeyGuideWhere(params.termKey)
+      : {};
+
     const where: Prisma.CropGuideWhereInput = {
 
       ...(params.cropKind ? { cropKind: params.cropKind } : {}),
 
       ...(params.status ? { status: params.status } : {}),
 
-      ...(params.termKey
-
-        ? { taxonomyTags: { some: { key: params.termKey } } }
-
-        : {}),
+      ...termFilter,
 
       ...(params.query
 
@@ -285,6 +336,7 @@ export class ContentService {
     cropKind?: CropKind | null,
     termKey?: string | null,
   ) {
+    const termFilter = termKey ? await this.termKeyGuideWhere(termKey) : {};
 
     return this.prisma.cropGuide.findMany({
 
@@ -294,7 +346,7 @@ export class ContentService {
 
         ...(cropKind ? { cropKind } : {}),
 
-        ...(termKey ? { taxonomyTags: { some: { key: termKey } } } : {}),
+        ...termFilter,
 
       },
 
@@ -380,12 +432,13 @@ export class ContentService {
 
     const bodyTelegramMd = params.bodyTelegramMd ?? "";
 
-    const taxonomyTags = await this.taxonomyTagService.connectByIds(params.taxonomyTagIds, {
-      cropKind: params.cropKind,
-      requireCropRoot: Boolean(params.taxonomyTagIds?.length),
-    });
-
-
+    const taxonomyConnect = await this.taxonomyTagService.connectByIds(
+      params.taxonomyTagIds,
+      {
+        cropKind: params.cropKind,
+        requireCropRoot: Boolean(params.taxonomyTagIds?.length),
+      },
+    );
 
     if (!params.bodyJson && !bodySiteMd.trim()) {
 
@@ -393,11 +446,9 @@ export class ContentService {
 
     }
 
-
-
     try {
 
-      return await this.prisma.cropGuide.create({
+      const guide = await this.prisma.cropGuide.create({
 
         data: {
 
@@ -431,25 +482,20 @@ export class ContentService {
 
           sortOrder: params.sortOrder ?? undefined,
 
-          ...(taxonomyTags
-
-            ? {
-
-                taxonomyTags: {
-
-                  connect: taxonomyTags.set.map(tag => ({ id: tag.id })),
-
-                },
-
-              }
-
-            : {}),
-
         },
 
         include: guideInclude,
 
       });
+
+      if (taxonomyConnect) {
+        await this.replaceGuideTaxonomyLinks(
+          guide.id,
+          taxonomyConnect.set.map(tag => tag.id),
+        );
+      }
+
+      return guide;
 
     } catch (error) {
 
@@ -513,16 +559,17 @@ export class ContentService {
 
     );
 
-    const taxonomyTags = await this.taxonomyTagService.connectByIds(params.taxonomyTagIds, {
-      cropKind: params.cropKind ?? existing.cropKind,
-      requireCropRoot: Boolean(params.taxonomyTagIds?.length),
-    });
-
-
+    const taxonomyConnect = await this.taxonomyTagService.connectByIds(
+      params.taxonomyTagIds,
+      {
+        cropKind: params.cropKind ?? existing.cropKind,
+        requireCropRoot: Boolean(params.taxonomyTagIds?.length),
+      },
+    );
 
     try {
 
-      return await this.prisma.cropGuide.update({
+      const guide = await this.prisma.cropGuide.update({
 
         where: { id: params.id },
 
@@ -566,13 +613,20 @@ export class ContentService {
 
           sortOrder: params.sortOrder ?? undefined,
 
-          ...(taxonomyTags ? { taxonomyTags } : {}),
-
         },
 
         include: guideInclude,
 
       });
+
+      if (taxonomyConnect !== undefined) {
+        await this.replaceGuideTaxonomyLinks(
+          guide.id,
+          taxonomyConnect.set.map(tag => tag.id),
+        );
+      }
+
+      return guide;
 
     } catch (error) {
 

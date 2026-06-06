@@ -2,8 +2,8 @@ import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcrypt";
 import { seedActionPathRegistry } from "../src/scripts/seed-action-path-registry";
 import { seedRegistryFieldSpecs } from "../src/scripts/seed-registry-field-specs";
-import { seedTaxonomyTags } from "../src/scripts/seed-taxonomy-tags";
 import { seedSiteContent } from "../src/scripts/seed-site-content";
+import { seedTaxonomyTags } from "../src/scripts/run-seed-taxonomy-tags";
 
 const prisma = new PrismaClient();
 
@@ -61,68 +61,10 @@ async function main() {
 
   console.log("Created users:", { admin, admin2, moderator, user });
 
-  // Create some sample brands
-  const brand1 = await prisma.brand.create({
-    data: {
-      name: "GrowLight Pro",
-      category: "LAMP",
-      description: "Professional LED grow lights for indoor cultivation",
-    },
-  });
+  // Brand / Product: reference-data-service — см. services/reference-data `npm run db:seed`
 
-  const brand2 = await prisma.brand.create({
-    data: {
-      name: "TentMaster",
-      category: "TENT",
-      description: "High-quality grow tents in various sizes",
-    },
-  });
-
-  const brand3 = await prisma.brand.create({
-    data: {
-      name: "Breeders Choice",
-      category: "BREADER",
-      description: "Premium genetics and seeds collection",
-    },
-  });
-
-  console.log("Created brands:", { brand1, brand2, brand3 });
-
-  // Create some sample products
-  await prisma.product.createMany({
-    data: [
-      {
-        name: "LED Grow Light 300W",
-        category: "Lighting",
-        brandId: brand1.id,
-        summarize: "Full spectrum LED grow light with 300W power",
-      },
-      {
-        name: "LED Grow Light 600W",
-        category: "Lighting",
-        brandId: brand1.id,
-        summarize: "Professional full spectrum LED grow light with 600W power",
-      },
-      {
-        name: "Grow Tent 120x120x200cm",
-        category: "Tents",
-        brandId: brand2.id,
-        summarize: "Medium size grow tent with reflective interior",
-      },
-      {
-        name: "Grow Tent 240x120x200cm",
-        category: "Tents",
-        brandId: brand2.id,
-        summarize: "Large professional grow tent for serious growers",
-      },
-    ],
-    skipDuplicates: true,
-  });
-
-  console.log("Created sample products");
-
-  const taxonomyTagsSeed = await seedTaxonomyTags(prisma);
-  console.log("Seeded taxonomy tags:", taxonomyTagsSeed);
+  const taxonomySeedResult = await seedTaxonomyTags();
+  console.log("Seeded taxonomy tags:", taxonomySeedResult);
 
   const seedScope = process.env.REGISTRY_SEED_SCOPE === "mvp" ? "mvp" : "full";
   const registrySeedResult = await seedActionPathRegistry(prisma, seedScope);

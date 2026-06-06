@@ -5,7 +5,7 @@ import { GraphQLModule } from "@nestjs/graphql";
 import { GraphQLDateTime, GraphQLJSON } from "graphql-scalars";
 import type { Request } from "express";
 import { AuthModule } from "./modules/auth/auth.module";
-import { BrandsModule } from "./modules/brands/brands.module";
+import { ReferenceDataModule } from "./modules/reference-data/reference-data.module";
 import { TaxonomyModule } from "./modules/taxonomy/taxonomy.module";
 import { ContentModule } from "./modules/content/content.module";
 import { DiaryModule } from "./modules/diary/diary.module";
@@ -13,7 +13,7 @@ import { EventsModule } from "./modules/events/events.module";
 import { MediaModule } from "./modules/media/media.module";
 import { PlantModule } from "./modules/plant/plant.module";
 import { LocationsModule } from "./modules/locations/locations.module";
-import { ProductsModule } from "./modules/products/products.module";
+import { CultivationUnitsModule } from "./modules/cultivation-units/cultivation-units.module";
 import { PrimitivesModule } from "./modules/primitives/primitives.module";
 import { RegistryModule } from "./modules/registry/registry.module";
 import { TagsModule } from "./modules/tags/tags.module";
@@ -51,14 +51,14 @@ import { HealthModule } from "./health/health.module";
     DiaryModule,
     EventsModule,
     MediaModule,
-    BrandsModule,
+    ReferenceDataModule,
     TaxonomyModule,
     ContentModule,
     TelegramModule,
-    ProductsModule,
     PrimitivesModule,
     RegistryModule,
     LocationsModule,
+    CultivationUnitsModule,
     TagsModule,
   ],
 })

@@ -76,6 +76,7 @@ export class LocationsResolver {
     @Args("input")
     input: {
       name: string;
+      parentLocationId?: string | null;
       status?: "active" | "archived" | null;
       type?: LocationType | null;
       subType?: LocationSubType | null;
@@ -91,6 +92,7 @@ export class LocationsResolver {
     return this.locationsService.create({
       userId,
       name: input.name,
+      parentLocationId: input.parentLocationId,
       status: input.status,
       type: input.type,
       subType: input.subType,
@@ -112,6 +114,7 @@ export class LocationsResolver {
     @Args("input")
     input: {
       name?: string | null;
+      parentLocationId?: string | null;
       status?: "active" | "archived" | null;
       type?: LocationType | null;
       subType?: LocationSubType | null;
@@ -128,6 +131,7 @@ export class LocationsResolver {
       userId,
       id,
       name: input.name,
+      parentLocationId: input.parentLocationId,
       status: input.status,
       type: input.type,
       subType: input.subType,

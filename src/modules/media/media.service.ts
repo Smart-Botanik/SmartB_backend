@@ -284,10 +284,6 @@ export class MediaService {
   async getMediaById(id: string) {
     return this.prisma.media.findUnique({
       where: { id },
-      include: {
-        brandAvatarFor: true,
-        productAvatarFor: true,
-      },
     });
   }
 

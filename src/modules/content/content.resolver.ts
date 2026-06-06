@@ -41,6 +41,11 @@ export class CropGuideResolver {
     return this.contentService.resolveMediaInMarkdown(guide.bodySiteMd ?? "");
   }
 
+  @ResolveField("taxonomyTags")
+  taxonomyTags(@Parent() guide: { id: string }) {
+    return this.contentService.resolveCropGuideTaxonomyTags(guide.id);
+  }
+
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.ADMIN)
   @Query("cropGuides")
