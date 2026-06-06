@@ -1,7 +1,6 @@
-import { PrismaClient } from "@prisma/client";
-import { TaxonomyRepository } from "../modules/taxonomy/taxonomy.repository";
-import { TaxonomyTagService } from "../modules/taxonomy/taxonomy-tag.service";
-import { seedTaxonomyTags } from "./seed-taxonomy-tags";
+import { ConfigService } from "@nestjs/config";
+import { TaxonomyRemoteGraphqlClient } from "../modules/taxonomy/taxonomy-remote.graphql-client";
+import { TaxonomyTagRemoteService } from "../modules/taxonomy/taxonomy-tag.remote-service";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -10,24 +9,24 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 async function main() {
-  const prisma = new PrismaClient();
-  const service = new TaxonomyTagService(new TaxonomyRepository(prisma as never));
+  const config = new ConfigService(process.env);
+  const url = config.get<string>("TAXONOMY_SERVICE_URL")?.trim();
+  if (!url) {
+    console.error(
+      "Taxonomy cutover e2e requires TAXONOMY_SERVICE_URL (BK-MS-TAX-3)",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const remote = new TaxonomyRemoteGraphqlClient(config);
+  const service = new TaxonomyTagRemoteService(remote);
 
   try {
-    try {
-      await seedTaxonomyTags(prisma);
-    } catch (seedError) {
-      // Demo product link in seed may fail on stale DB; tags/scopes are upserted first.
-      console.warn(
-        "[test:taxonomy:e2e] seedTaxonomyTags warning:",
-        seedError instanceof Error ? seedError.message : seedError,
-      );
-    }
-
     const scopes = await service.listScopes();
     assert(scopes.length >= 2, "Expected at least 2 taxonomy scopes (crop, guides)");
     assert(
-      scopes.some(scope => scope.key === "crop"),
+      (scopes as Array<{ key: string }>).some(scope => scope.key === "crop"),
       "Expected crop scope",
     );
 
@@ -42,19 +41,32 @@ async function main() {
     });
     assert(rootPage.total > 0, "Expected taxonomyTags total > 0 for crop roots");
 
-    const tomato = rootPage.items.find(tag => tag.key === "crop.tomato");
+    const tomato = rootPage.items.find(
+      (tag: { key: string }) => tag.key === "crop.tomato",
+    );
     assert(tomato, "Expected crop.tomato tag in list");
-    assert(tomato.id, "Expected crop.tomato id");
 
-    const byId = await service.getById(tomato.id);
-    assert(byId.key === "crop.tomato", "getById should return crop.tomato");
+    const byId = await service.getById((tomato as { id: string }).id);
+    assert((byId as { key: string }).key === "crop.tomato", "getById crop.tomato");
 
-    console.log("Taxonomy smoke OK");
+    const byKeys = await service.tagsByKeys(["crop.tomato"]);
+    assert(byKeys.length === 1, "tagsByKeys single");
+    assert(
+      (byKeys[0] as { key: string }).key === "crop.tomato",
+      "tagsByKeys crop.tomato",
+    );
+
+    const connected = await service.connectByKeys(["crop.tomato"]);
+    assert(connected.set.length === 1, "connectByKeys single");
+    assert(
+      connected.set[0].id === (tomato as { id: string }).id,
+      "connectByKeys id",
+    );
+
+    console.log("Taxonomy cutover smoke OK (remote via", url, ")");
   } catch (error) {
-    console.error("Taxonomy smoke FAILED", error);
+    console.error("Taxonomy cutover smoke FAILED", error);
     process.exitCode = 1;
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

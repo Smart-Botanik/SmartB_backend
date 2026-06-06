@@ -8,7 +8,11 @@ import {
   Resolver,
 } from "@nestjs/graphql";
 import { Role } from "@growing/contracts";
-import { CropKind, TaxonomyTagNamespace, TaxonomyTagStatus } from "@prisma/client";
+import {
+  type CropKind,
+  type TaxonomyTagNamespace,
+  type TaxonomyTagStatus,
+} from "@growing/contracts";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
@@ -72,6 +76,12 @@ export class TaxonomyTagResolver {
   @Query("taxonomyTag")
   taxonomyTag(@Args("id") id: string) {
     return this.taxonomyTagService.getById(id);
+  }
+
+  @UseGuards(GqlJwtAuthGuard)
+  @Query("taxonomyTagsByKeys")
+  taxonomyTagsByKeys(@Args("keys", { type: () => [String] }) keys: string[]) {
+    return this.taxonomyTagService.tagsByKeys(keys);
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)

@@ -1,5 +1,33 @@
 import { ContentStatus, CropKind, Prisma, PrismaClient } from "@prisma/client";
 import { GUIDE_TAXONOMY_TAG_KEYS_BY_SLUG } from "./seed-taxonomy-tags";
+import { createTaxonomyPrisma } from "./taxonomy-prisma-for-migration";
+
+async function resolveTaxonomyTagIdsByKeys(
+  keys: string[],
+): Promise<Array<{ id: string }>> {
+  if (keys.length === 0) return [];
+  const url = process.env.TAXONOMY_DATABASE_URL?.trim();
+  if (!url) {
+    throw new Error(
+      "TAXONOMY_DATABASE_URL is required to link guide taxonomy tags (run services/taxonomy db:seed first)",
+    );
+  }
+  const taxonomy = createTaxonomyPrisma(url);
+  try {
+    const tags = await taxonomy.taxonomyTag.findMany({
+      where: { key: { in: keys } },
+      select: { id: true, key: true },
+    });
+    const found = new Set(tags.map(t => t.key));
+    const missing = keys.filter(key => !found.has(key));
+    if (missing.length > 0) {
+      throw new Error(`taxonomy tag keys not found: ${missing.join(", ")}`);
+    }
+    return tags.map(t => ({ id: t.id }));
+  } finally {
+    await taxonomy.$disconnect();
+  }
+}
 
 type TSeedGuide = {
   cropKind: CropKind;
@@ -374,15 +402,9 @@ export async function seedSiteContent(prisma: PrismaClient) {
 
   for (const guide of GUIDES) {
     const labelKeys = GUIDE_TAXONOMY_TAG_KEYS_BY_SLUG[guide.slug] ?? [];
-    const labelRecords =
-      labelKeys.length > 0
-        ? await prisma.taxonomyTag.findMany({
-            where: { key: { in: labelKeys } },
-            select: { id: true },
-          })
-        : [];
+    const labelRecords = await resolveTaxonomyTagIdsByKeys(labelKeys);
 
-    await prisma.cropGuide.upsert({
+    const saved = await prisma.cropGuide.upsert({
       where: { slug: guide.slug },
       update: {
         cropKind: guide.cropKind,
@@ -394,7 +416,6 @@ export async function seedSiteContent(prisma: PrismaClient) {
         publishedAt: now,
         seoTitle: `${guide.title} — SmartБотаник`,
         seoDescription: guide.excerpt,
-        taxonomyTags: { set: labelRecords.map(tag => ({ id: tag.id })) },
       },
       create: {
         cropKind: guide.cropKind,
@@ -407,9 +428,20 @@ export async function seedSiteContent(prisma: PrismaClient) {
         publishedAt: now,
         seoTitle: `${guide.title} — SmartБотаник`,
         seoDescription: guide.excerpt,
-        taxonomyTags: { connect: labelRecords.map(tag => ({ id: tag.id })) },
       },
     });
+
+    await prisma.cropGuideTaxonomyTag.deleteMany({
+      where: { cropGuideId: saved.id },
+    });
+    if (labelRecords.length > 0) {
+      await prisma.cropGuideTaxonomyTag.createMany({
+        data: labelRecords.map(tag => ({
+          cropGuideId: saved.id,
+          taxonomyTagId: tag.id,
+        })),
+      });
+    }
   }
 
   await prisma.sitePage.upsert({

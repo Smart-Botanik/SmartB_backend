@@ -132,6 +132,24 @@ export const QUERY_TAXONOMY_TAG = `
   }
 `;
 
+export const QUERY_TAXONOMY_TAGS_BY_KEYS = `
+  query TaxonomyTagsByKeys($keys: [String!]!) {
+    taxonomyTagsByKeys(keys: $keys) {
+      ${TAXONOMY_TAG_FIELDS}
+    }
+  }
+`;
+
+/** Минимальный набор полей для connectByKeys (BK-MS-TAX-2b). */
+export const QUERY_TAXONOMY_TAGS_BY_KEYS_MINIMAL = `
+  query TaxonomyTagsByKeys($keys: [String!]!) {
+    taxonomyTagsByKeys(keys: $keys) {
+      id
+      key
+    }
+  }
+`;
+
 export const MUTATION_CREATE_SCOPE = `
   mutation CreateTaxonomyScope($input: CreateTaxonomyScopeInput!) {
     createTaxonomyScope(input: $input) {

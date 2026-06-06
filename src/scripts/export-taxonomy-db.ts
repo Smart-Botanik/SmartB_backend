@@ -1,4 +1,8 @@
+/**
+ * One-time export from a **pre-cutover** monolith Postgres (TaxonomyScope/Tag tables present).
+ */
 import { PrismaClient } from "@prisma/client";
+import { createTaxonomyPrisma } from "./taxonomy-prisma-for-migration";
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -8,6 +12,30 @@ function requireEnv(name: string): string {
   return value;
 }
 
+type ScopeRow = {
+  key: string;
+  label: string;
+  description: string | null;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type TagRow = {
+  id: string;
+  scopeKey: string;
+  key: string;
+  namespace: string;
+  label: string;
+  sortOrder: number;
+  parentId: string | null;
+  cropKind: string | null;
+  variantAxis: string | null;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 async function main() {
   const sourceUrl = requireEnv("DATABASE_URL");
   const targetUrl = requireEnv("TAXONOMY_DATABASE_URL");
@@ -15,15 +43,20 @@ async function main() {
   const source = new PrismaClient({
     datasources: { db: { url: sourceUrl } },
   });
-  const target = new PrismaClient({
-    datasources: { db: { url: targetUrl } },
-  });
+  const target = createTaxonomyPrisma(targetUrl);
 
   try {
-    const scopes = await source.taxonomyScope.findMany();
-    const tags = await source.taxonomyTag.findMany({
-      orderBy: [{ scopeKey: "asc" }, { key: "asc" }],
-    });
+    const scopes = await source.$queryRaw<ScopeRow[]>`
+      SELECT key, label, description, "sortOrder", "createdAt", "updatedAt"
+      FROM "TaxonomyScope"
+    `;
+    const tags = await source.$queryRaw<TagRow[]>`
+      SELECT id, "scopeKey", key, namespace::text AS namespace, label, "sortOrder",
+        "parentId", "cropKind"::text AS "cropKind", "variantAxis", status::text AS status,
+        "createdAt", "updatedAt"
+      FROM "TaxonomyTag"
+      ORDER BY "scopeKey" ASC, key ASC
+    `;
 
     for (const scope of scopes) {
       await target.taxonomyScope.upsert({
@@ -52,26 +85,26 @@ async function main() {
           id: tag.id,
           scopeKey: tag.scopeKey,
           key: tag.key,
-          namespace: tag.namespace,
+          namespace: tag.namespace as never,
           label: tag.label,
           sortOrder: tag.sortOrder,
           parentId: tag.parentId,
-          cropKind: tag.cropKind,
+          cropKind: tag.cropKind as never,
           variantAxis: tag.variantAxis,
-          status: tag.status,
+          status: tag.status as never,
           createdAt: tag.createdAt,
           updatedAt: tag.updatedAt,
         },
         update: {
           scopeKey: tag.scopeKey,
           key: tag.key,
-          namespace: tag.namespace,
+          namespace: tag.namespace as never,
           label: tag.label,
           sortOrder: tag.sortOrder,
           parentId: tag.parentId,
-          cropKind: tag.cropKind,
+          cropKind: tag.cropKind as never,
           variantAxis: tag.variantAxis,
-          status: tag.status,
+          status: tag.status as never,
           updatedAt: tag.updatedAt,
         },
       });

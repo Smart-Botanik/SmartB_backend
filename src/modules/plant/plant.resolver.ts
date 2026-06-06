@@ -14,6 +14,7 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { EventsService } from "../events/events.service";
 import { locationGraphqlInclude } from "../locations/locations.service";
+import { cultivationUnitGraphqlInclude } from "../cultivation-units/cultivation-units.service";
 import { PlantService } from "./plant.service";
 
 type GqlRequest = Request & { user?: { userId?: string } };
@@ -77,6 +78,7 @@ export class PlantResolver {
       name: string;
       diaryId?: string | null;
       locationId?: string | null;
+      cultivationUnitId?: string | null;
       groupId?: string | null;
     },
   ) {
@@ -86,6 +88,7 @@ export class PlantResolver {
       name: input.name,
       diaryId: input.diaryId,
       locationId: input.locationId,
+      cultivationUnitId: input.cultivationUnitId,
       groupId: input.groupId,
     });
   }
@@ -170,7 +173,13 @@ export class PlantResolver {
   updatePlant(
     @Context("req") req: GqlRequest,
     @Args("id") id: string,
-    @Args("input") input: { name?: string | null; diaryId?: string | null },
+    @Args("input") input: {
+      name?: string | null;
+      diaryId?: string | null;
+      locationId?: string | null;
+      cultivationUnitId?: string | null;
+      cultivationUnitNudgeDismissed?: boolean | null;
+    },
   ) {
     const userId = getUserIdFromReq(req);
     return this.plantService.update({
@@ -178,6 +187,9 @@ export class PlantResolver {
       id,
       name: input.name,
       diaryId: input.diaryId,
+      locationId: input.locationId,
+      cultivationUnitId: input.cultivationUnitId,
+      cultivationUnitNudgeDismissed: input.cultivationUnitNudgeDismissed,
     });
   }
 
@@ -196,6 +208,17 @@ export class PlantResolver {
     return this.prisma.location.findUnique({
       where: { id: plant.locationId },
       include: locationGraphqlInclude,
+    });
+  }
+
+  @ResolveField("cultivationUnit")
+  cultivationUnit(@Parent() plant: { cultivationUnitId?: string | null }) {
+    if (!plant.cultivationUnitId) {
+      return null;
+    }
+    return this.prisma.cultivationUnit.findUnique({
+      where: { id: plant.cultivationUnitId },
+      include: cultivationUnitGraphqlInclude,
     });
   }
 

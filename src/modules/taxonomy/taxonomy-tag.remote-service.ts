@@ -4,15 +4,13 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
+  type CropKind,
   type FlatTaxonomyTag,
+  type TaxonomyTagNamespace,
+  type TaxonomyTagStatus,
   type ValidateTaxonomyTagSelectionContext,
   validateTaxonomyTagSelection,
 } from "@growing/contracts";
-import {
-  CropKind,
-  TaxonomyTagNamespace,
-  TaxonomyTagStatus,
-} from "@prisma/client";
 import { TaxonomyRemoteGraphqlClient } from "./taxonomy-remote.graphql-client";
 import {
   MUTATION_CREATE_SCOPE,
@@ -24,8 +22,13 @@ import {
   QUERY_TAXONOMY_SCOPES,
   QUERY_TAXONOMY_TAG,
   QUERY_TAXONOMY_TAGS,
+  QUERY_TAXONOMY_TAGS_BY_KEYS,
+  QUERY_TAXONOMY_TAGS_BY_KEYS_MINIMAL,
 } from "./taxonomy-remote.operations";
-import type { TaxonomyGroupDeleteStrategy } from "./taxonomy-tag.service";
+import {
+  TaxonomyTagService,
+  type TaxonomyGroupDeleteStrategy,
+} from "./taxonomy-tag.service";
 
 type RemoteTag = {
   id: string;
@@ -43,12 +46,12 @@ type RemoteTag = {
   children?: RemoteTag[];
 };
 
-/**
- * BFF proxy to taxonomy-service when TAXONOMY_SERVICE_URL is set (BK-MS-TAX-2).
- */
+/** BFF proxy to taxonomy-service (BK-MS-TAX-2 / BK-MS-TAX-3 cutover). */
 @Injectable()
-export class TaxonomyTagRemoteService {
-  constructor(private readonly remote: TaxonomyRemoteGraphqlClient) {}
+export class TaxonomyTagRemoteService extends TaxonomyTagService {
+  constructor(private readonly remote: TaxonomyRemoteGraphqlClient) {
+    super();
+  }
 
   async listScopes() {
     const data = await this.remote.execute<{ taxonomyScopes: unknown[] }>(
@@ -112,6 +115,16 @@ export class TaxonomyTagRemoteService {
       throw new NotFoundException("TaxonomyTag not found");
     }
     return data.taxonomyTag;
+  }
+
+  async tagsByKeys(keys: string[]) {
+    if (keys.length === 0) {
+      return [];
+    }
+    const data = await this.remote.execute<{
+      taxonomyTagsByKeys: RemoteTag[];
+    }>(QUERY_TAXONOMY_TAGS_BY_KEYS, { keys });
+    return data.taxonomyTagsByKeys;
   }
 
   async create(params: {
@@ -210,17 +223,11 @@ export class TaxonomyTagRemoteService {
       return { set: [] as { id: string }[] };
     }
 
-    const tags: Array<{ id: string; key: string }> = [];
-    for (const key of keys) {
-      const page = await this.list({ query: key, limit: 20, offset: 0 });
-      const exact = page.items.find(item => item.key === key);
-      if (!exact) {
-        throw new BadRequestException(`taxonomy tag keys not found: ${key}`);
-      }
-      tags.push({ id: exact.id, key: exact.key });
-    }
+    const data = await this.remote.execute<{
+      taxonomyTagsByKeys: Array<{ id: string; key: string }>;
+    }>(QUERY_TAXONOMY_TAGS_BY_KEYS_MINIMAL, { keys });
 
-    return { set: tags.map(tag => ({ id: tag.id })) };
+    return { set: data.taxonomyTagsByKeys.map(tag => ({ id: tag.id })) };
   }
 
   private toFlatTag(tag: RemoteTag): FlatTaxonomyTag {

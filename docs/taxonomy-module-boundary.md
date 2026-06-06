@@ -7,7 +7,7 @@
 
 | Concern | Owner |
 |---------|--------|
-| Prisma `TaxonomyScope`, `TaxonomyTag` | `TaxonomyRepository` only |
+| Prisma `TaxonomyScope`, `TaxonomyTag` | **taxonomy-service** only (monolith: remote) |
 | Business rules (namespace, forest, deleteGroup) | `TaxonomyTagService` |
 | GraphQL queries/mutations `taxonomy*` | `TaxonomyTagResolver` |
 | Nest wiring | `TaxonomyModule` |
@@ -20,7 +20,8 @@ Do **not** import `TaxonomyRepository` outside taxonomy module except scripts/te
 | Method | Use case |
 |--------|----------|
 | `connectByIds(ids, ctx?)` | M2M link Product / CropGuide → tags |
-| `connectByKeys(keys)` | Seed / migration by stable keys |
+| `connectByKeys(keys)` | Seed / migration by stable keys (remote: one `taxonomyTagsByKeys` call) |
+| `tagsByKeys(keys)` | Batch lookup by stable keys (GraphQL + internal) |
 | `list`, `forest`, `getById`, … | Prefer GraphQL for admin; service for internal |
 
 ## Forbidden in other modules
@@ -39,7 +40,7 @@ Do **not** import `TaxonomyRepository` outside taxonomy module except scripts/te
 
 ## GraphQL surface (unchanged for clients)
 
-- Queries: `taxonomyScopes`, `taxonomyTags`, `taxonomyForest`, `taxonomyTag`
+- Queries: `taxonomyScopes`, `taxonomyTags`, `taxonomyForest`, `taxonomyTag`, `taxonomyTagsByKeys`
 - Mutations: `createTaxonomyScope`, `createTaxonomyTag`, `updateTaxonomyTag`, `deleteTaxonomyTag`, `deleteTaxonomyGroup`
 
 ## Smoke
@@ -63,6 +64,7 @@ When **`TAXONOMY_SERVICE_URL`** is set, monolith uses **`TaxonomyTagRemoteServic
 Standalone service: [`../../services/taxonomy/README.md`](../../services/taxonomy/README.md).  
 Research: [`../../memory/backend/research-taxonomy-service-extract-v1.md`](../../memory/backend/research-taxonomy-service-extract-v1.md).
 
-## Next (BK-MS-TAX-3)
+## Cutover (BK-MS-TAX-3) ✅
 
-Cutover: drop monolith taxonomy tables; M2M Product/Guide keeps tag ids only.
+Monolith: no `TaxonomyScope`/`TaxonomyTag`; `CropGuideTaxonomyTag` stores tag ids; `TaxonomyTagService` remote-only.  
+Runbook: [`../../memory/backend/research-taxonomy-cutover-v1.md`](../../memory/backend/research-taxonomy-cutover-v1.md).

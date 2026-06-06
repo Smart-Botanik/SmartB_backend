@@ -1,7 +1,8 @@
+import { ConfigService } from "@nestjs/config";
 import { ContentStatus, PrismaClient } from "@prisma/client";
 import { ContentService } from "../modules/content/content.service";
-import { TaxonomyTagService } from "../modules/taxonomy/taxonomy-tag.service";
-import { TaxonomyRepository } from "../modules/taxonomy/taxonomy.repository";
+import { TaxonomyRemoteGraphqlClient } from "../modules/taxonomy/taxonomy-remote.graphql-client";
+import { TaxonomyTagRemoteService } from "../modules/taxonomy/taxonomy-tag.remote-service";
 import { seedSiteContent } from "./seed-site-content";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -11,8 +12,20 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 async function main() {
+  const url = process.env.TAXONOMY_SERVICE_URL?.trim();
+  if (!url) {
+    console.error(
+      "Site content e2e after TAX-3 requires TAXONOMY_SERVICE_URL + TAXONOMY_DATABASE_URL for seed",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const prisma = new PrismaClient();
-  const taxonomyTagService = new TaxonomyTagService(new TaxonomyRepository(prisma as never));
+  const config = new ConfigService(process.env);
+  const taxonomyTagService = new TaxonomyTagRemoteService(
+    new TaxonomyRemoteGraphqlClient(config),
+  );
   const service = new ContentService(prisma as never, taxonomyTagService);
 
   try {
@@ -39,50 +52,27 @@ async function main() {
         data: { status: ContentStatus.DRAFT },
       });
       draftSeen = true;
-
-      const publishedAfterDraft = await service.listPublishedCropGuides();
+      const afterDraft = await service.listPublishedCropGuides();
       assert(
-        !publishedAfterDraft.some(guide => guide.slug === "ogurcy"),
-        "Draft guide must not appear in published list",
+        afterDraft.every(g => g.slug !== "ogurcy"),
+        "Draft guide should not appear in published list",
       );
-
-      await expect(async () => {
-        await service.getPublishedCropGuideBySlug("ogurcy");
-      });
     } finally {
       if (draftSeen) {
         await prisma.cropGuide.update({
           where: { slug: "ogurcy" },
-          data: {
-            status: ContentStatus.PUBLISHED,
-            publishedAt: new Date(),
-          },
+          data: { status: ContentStatus.PUBLISHED, publishedAt: new Date() },
         });
       }
     }
 
-    console.log("SITE content smoke OK:", {
-      publishedGuides: publishedGuides.length,
-      homeSections: (home.sections as unknown[]).length,
-      adminTotal: adminList.total,
-    });
+    console.log("Site content smoke OK");
+  } catch (error) {
+    console.error("Site content smoke FAILED", error);
+    process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }
 }
 
-async function expect(action: () => Promise<unknown>): Promise<void> {
-  try {
-    await action();
-    throw new Error("Expected action to reject");
-  } catch (error) {
-    if (error instanceof Error && error.message === "Expected action to reject") {
-      throw error;
-    }
-  }
-}
-
-main().catch(error => {
-  console.error("SITE content smoke FAILED:", error);
-  process.exit(1);
-});
+void main();

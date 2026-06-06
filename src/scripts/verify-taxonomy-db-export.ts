@@ -1,4 +1,8 @@
+/**
+ * Verifies pre-cutover monolith taxonomy rows against taxonomy_db.
+ */
 import { PrismaClient } from "@prisma/client";
+import { createTaxonomyPrisma } from "./taxonomy-prisma-for-migration";
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -16,6 +20,18 @@ function forestRootCount(
     .length;
 }
 
+async function countSourceTable(
+  source: PrismaClient,
+  table: "TaxonomyScope" | "TaxonomyTag",
+): Promise<number> {
+  const sql =
+    table === "TaxonomyScope"
+      ? `SELECT COUNT(*)::bigint AS count FROM "TaxonomyScope"`
+      : `SELECT COUNT(*)::bigint AS count FROM "TaxonomyTag"`;
+  const result = await source.$queryRawUnsafe<Array<{ count: bigint }>>(sql);
+  return Number(result[0]?.count ?? 0);
+}
+
 async function main() {
   const sourceUrl = requireEnv("DATABASE_URL");
   const targetUrl = requireEnv("TAXONOMY_DATABASE_URL");
@@ -23,21 +39,19 @@ async function main() {
   const source = new PrismaClient({
     datasources: { db: { url: sourceUrl } },
   });
-  const target = new PrismaClient({
-    datasources: { db: { url: targetUrl } },
-  });
+  const target = createTaxonomyPrisma(targetUrl);
 
   try {
-    const [sourceScopes, targetScopes, sourceTags, targetTags] =
+    const [sourceScopes, targetScopes, sourceTagCount, targetTags] =
       await Promise.all([
-        source.taxonomyScope.count(),
+        countSourceTable(source, "TaxonomyScope"),
         target.taxonomyScope.count(),
-        source.taxonomyTag.findMany({
-          select: { id: true, key: true, scopeKey: true, parentId: true },
-        }),
+        countSourceTable(source, "TaxonomyTag"),
         target.taxonomyTag.findMany({
           select: { id: true, key: true, scopeKey: true, parentId: true },
-        }),
+        }) as Promise<
+          Array<{ id: string; key: string; scopeKey: string; parentId: string | null }>
+        >,
       ]);
 
     if (sourceScopes !== targetScopes) {
@@ -45,11 +59,17 @@ async function main() {
         `Scope count mismatch: source=${sourceScopes} target=${targetScopes}`,
       );
     }
-    if (sourceTags.length !== targetTags.length) {
+    if (sourceTagCount !== targetTags.length) {
       throw new Error(
-        `Tag count mismatch: source=${sourceTags.length} target=${targetTags.length}`,
+        `Tag count mismatch: source=${sourceTagCount} target=${targetTags.length}`,
       );
     }
+
+    const sourceTags = await source.$queryRaw<
+      Array<{ id: string; key: string; scopeKey: string; parentId: string | null }>
+    >`
+      SELECT id, key, "scopeKey", "parentId" FROM "TaxonomyTag"
+    `;
 
     const sourceKeys = new Set(sourceTags.map(tag => tag.key).sort());
     const targetKeys = new Set(targetTags.map(tag => tag.key).sort());

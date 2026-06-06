@@ -35,6 +35,30 @@ export class PlantService {
     return group;
   }
 
+  private async assertOwnedCultivationUnit(userId: string, cultivationUnitId: string) {
+    const unit = await this.prisma.cultivationUnit.findUnique({
+      where: { id: cultivationUnitId },
+    });
+    if (!unit) {
+      throw new NotFoundException("CultivationUnit not found");
+    }
+    if (unit.userId !== userId) {
+      throw new ForbiddenException();
+    }
+    return unit;
+  }
+
+  private async assertOwnedLocation(userId: string, locationId: string) {
+    const location = await this.prisma.location.findUnique({ where: { id: locationId } });
+    if (!location) {
+      throw new NotFoundException("Location not found");
+    }
+    if (location.userId !== userId) {
+      throw new ForbiddenException();
+    }
+    return location;
+  }
+
   async list(params: { userId: string; limit?: number; offset?: number }) {
     return this.prisma.plant.findMany({
       where: { userId: params.userId },
@@ -71,6 +95,7 @@ export class PlantService {
     name: string;
     diaryId?: string | null;
     locationId?: string | null;
+    cultivationUnitId?: string | null;
     groupId?: string | null;
   }) {
     if (params.diaryId) {
@@ -79,12 +104,19 @@ export class PlantService {
     if (params.groupId) {
       await this.assertOwnedGroup(params.userId, params.groupId);
     }
+    if (params.locationId) {
+      await this.assertOwnedLocation(params.userId, params.locationId);
+    }
+    if (params.cultivationUnitId) {
+      await this.assertOwnedCultivationUnit(params.userId, params.cultivationUnitId);
+    }
     return this.prisma.plant.create({
       data: {
         userId: params.userId,
         name: params.name,
         diaryId: params.diaryId ?? null,
         locationId: params.locationId ?? null,
+        cultivationUnitId: params.cultivationUnitId ?? null,
         groupId: params.groupId ?? null,
       },
     });
@@ -258,10 +290,19 @@ export class PlantService {
     id: string;
     name?: string | null;
     diaryId?: string | null;
+    locationId?: string | null;
+    cultivationUnitId?: string | null;
+    cultivationUnitNudgeDismissed?: boolean | null;
   }) {
     await this.getById({ userId: params.userId, id: params.id });
 
-    const data: { name?: string; diaryId?: string | null } = {};
+    const data: {
+      name?: string;
+      diaryId?: string | null;
+      locationId?: string | null;
+      cultivationUnitId?: string | null;
+      cultivationUnitNudgeDismissed?: boolean;
+    } = {};
 
     if (params.name !== undefined) {
       data.name = params.name ?? undefined;
@@ -271,17 +312,31 @@ export class PlantService {
       if (params.diaryId === null) {
         data.diaryId = null;
       } else {
-        const diary = await this.prisma.diary.findUnique({
-          where: { id: params.diaryId },
-        });
-        if (!diary) {
-          throw new NotFoundException("Diary not found");
-        }
-        if (diary.userId !== params.userId) {
-          throw new ForbiddenException();
-        }
+        await this.assertOwnedDiary(params.userId, params.diaryId);
         data.diaryId = params.diaryId;
       }
+    }
+
+    if (params.locationId !== undefined) {
+      if (params.locationId === null) {
+        data.locationId = null;
+      } else {
+        await this.assertOwnedLocation(params.userId, params.locationId);
+        data.locationId = params.locationId;
+      }
+    }
+
+    if (params.cultivationUnitId !== undefined) {
+      if (params.cultivationUnitId === null) {
+        data.cultivationUnitId = null;
+      } else {
+        await this.assertOwnedCultivationUnit(params.userId, params.cultivationUnitId);
+        data.cultivationUnitId = params.cultivationUnitId;
+      }
+    }
+
+    if (params.cultivationUnitNudgeDismissed !== undefined && params.cultivationUnitNudgeDismissed !== null) {
+      data.cultivationUnitNudgeDismissed = params.cultivationUnitNudgeDismissed;
     }
 
     if (Object.keys(data).length === 0) {
