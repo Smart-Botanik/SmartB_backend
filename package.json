@@ -13,6 +13,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts",
+    "db:seed:locations": "ts-node src/scripts/seed-dev-locations.ts",
     "db:seed:taxonomy": "ts-node src/scripts/run-seed-taxonomy-tags.ts",
     "db:seed:registry": "ts-node src/scripts/seed-action-path-registry.ts",
     "db:seed:registry:fieldspec": "ts-node src/scripts/seed-registry-field-specs.ts",
@@ -31,7 +32,9 @@
     "db:export-taxonomy": "ts-node src/scripts/export-taxonomy-db.ts",
     "db:verify-taxonomy-export": "ts-node src/scripts/verify-taxonomy-db-export.ts",
     "db:backfill:cultivation-unit": "ts-node src/scripts/backfill-location-cultivation-unit.ts",
-    "db:verify:cultivation-unit-backfill": "ts-node src/scripts/verify-location-cultivation-unit-backfill.ts"
+    "db:verify:cultivation-unit-backfill": "ts-node src/scripts/verify-location-cultivation-unit-backfill.ts",
+    "db:backfill:location-unification": "ts-node src/scripts/backfill-location-unification.ts",
+    "db:verify:location-unification": "ts-node src/scripts/verify-location-unification.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
