@@ -79,6 +79,7 @@ model Plant {
   location          Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
   cultivationUnit   CultivationUnit?  @relation(fields: [cultivationUnitId], references: [id], onDelete: SetNull)
   group             PlantGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  seat              Seat?
 
   @@index([userId])
   @@index([diaryId])
@@ -419,6 +420,15 @@ enum LocationSpecKind {
   area
 }
 
+// --- ADR-0013 Location unification (REW-01) --------------------------------
+
+/// How planting places are modeled on a Location (Seat entity — REW-02).
+enum SeatLayoutMode {
+  fixed_grid
+  unlimited
+  simple_counter
+}
+
 model Location {
   id               String                @id @default(cuid())
   userId           String
@@ -426,12 +436,27 @@ model Location {
   name             String
   status           LocationStatus        @default(active)
   current          Json?
+  /// Transitional bridge (ADR-0011 legacy). Sunset REW-03 — map to `environmentTagId`, then drop.
   type             LocationType?
+  /// Transitional bridge (ADR-0011 legacy). Sunset REW-03 — map to `environmentTagId`, then drop.
   subType          LocationSubType?
   wateringType     LocationWateringType?
   description      String?
+  /// @deprecated REW-01-3 — use `seatLayoutMode` + Seat / `occupiedCount`
   capacity         Int?
+  /// @deprecated REW-01-3 — use `occupiedCount`
   occupiedSlots    Int?
+  /// Mandatory SoT (ADR-0013 §6): leaf `ENVIRONMENT_VARIANT`, scope `environment` (ADR-0012).
+  environmentTagId String?
+  /// Denormalized `indoor`|`outdoor`|`greenhouse` for SQL filters; derived from taxonomy parent on write.
+  environmentGroupSlug String?
+  /// Optional cm hints: { "width"?, "depth"?, "height"?, "unit"?: "cm" }
+  dimensions       Json?
+  seatLayoutMode   SeatLayoutMode        @default(simple_counter)
+  /// Grid hints v1: { "gridCols"?, "gridRows"?, "cellWidthCm"?, "cellDepthCm"? }
+  layoutMeta       Json?
+  /// Aggregate occupied places; derived from Seat/plants in app layer
+  occupiedCount    Int                   @default(0)
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
@@ -441,12 +466,67 @@ model Location {
   plants                    Plant[]
   diaries                   Diary[]                    @relation("DiaryLocations")
   specBlocks                LocationSpecBlock[]
+  taxonomyTags              LocationTaxonomyTag[]
   primaryCultivationUnits   CultivationUnit[]          @relation("CultivationUnitPrimaryLocation")
   cultivationUnitPlacements CultivationUnitPlacement[]
+  seats                     Seat[]
 
   @@index([userId])
   @@index([userId, status])
   @@index([parentLocationId])
+  @@index([environmentTagId])
+  @@index([environmentGroupSlug])
+}
+
+/// M2M Location ↔ taxonomy tag id (tags live in taxonomy-service). ADR-0013
+model LocationTaxonomyTag {
+  locationId    String
+  taxonomyTagId String
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([locationId, taxonomyTagId])
+  @@index([taxonomyTagId])
+}
+
+// --- REW-02 Seat --------------------------------------------------------------
+
+enum SeatStatus {
+  active
+  archived
+}
+
+model Seat {
+  id         String     @id @default(cuid())
+  locationId String
+  label      String
+  width      Float?
+  depth      Float?
+  height     Float?
+  /// JSON { row, col } for fixed_grid layout
+  position   Json?
+  status     SeatStatus @default(active)
+  /// Set when plant is seated (REW-06); nullable until placement API
+  plantId    String?    @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  location     Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  plant        Plant?            @relation(fields: [plantId], references: [id], onDelete: SetNull)
+  taxonomyTags SeatTaxonomyTag[]
+
+  @@unique([locationId, label])
+  @@index([locationId, status])
+}
+
+model SeatTaxonomyTag {
+  seatId        String
+  taxonomyTagId String
+
+  seat Seat @relation(fields: [seatId], references: [id], onDelete: Cascade)
+
+  @@id([seatId, taxonomyTagId])
+  @@index([taxonomyTagId])
 }
 
 model LocationProjectionCheckpoint {
@@ -545,7 +625,7 @@ enum CultivationUnitPlacementRole {
 model CultivationUnit {
   id                String                 @id @default(cuid())
   userId            String
-  primaryLocationId String
+  primaryLocationId String?
   name              String
   status            CultivationUnitStatus  @default(active)
   current           Json?
@@ -557,7 +637,7 @@ model CultivationUnit {
   updatedAt         DateTime               @updatedAt
 
   user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  primaryLocation Location                   @relation("CultivationUnitPrimaryLocation", fields: [primaryLocationId], references: [id], onDelete: Restrict)
+  primaryLocation Location?                  @relation("CultivationUnitPrimaryLocation", fields: [primaryLocationId], references: [id], onDelete: Restrict)
   placements      CultivationUnitPlacement[]
   plants          Plant[]
   diaries         Diary[]                    @relation("DiaryCultivationUnits")

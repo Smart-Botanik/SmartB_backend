@@ -9,9 +9,18 @@ import {
   LocationSubType,
   LocationType,
   Prisma,
+  SeatLayoutMode,
 } from "@prisma/client";
+import type { FlatTaxonomyTag } from "@growing/contracts";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { ProductsService } from "../reference-data/products.service";
+import { TaxonomyConsumerCatalogService } from "../taxonomy/taxonomy-consumer-catalog.service";
+import { TaxonomyTagService } from "../taxonomy/taxonomy-tag.service";
+import { resolveEnvironmentFieldsFromTag } from "./location-environment.util";
+import {
+  buildSeatCreateInputs,
+  type CreateSeatInput,
+} from "./seat.util";
 
 /** GraphQL / Prisma — вложенные блоки specs + связи для ответа */
 export const locationGraphqlInclude = {
@@ -19,6 +28,7 @@ export const locationGraphqlInclude = {
   children: { orderBy: { name: "asc" as const } },
   plants: { orderBy: { createdAt: "desc" as const } },
   diaries: { orderBy: { createdAt: "desc" as const } },
+  taxonomyTags: true,
   cultivationUnitPlacements: {
     orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
     include: {
@@ -40,6 +50,11 @@ export const locationGraphqlInclude = {
       space: true,
       area: true,
     },
+  },
+  seats: {
+    where: { status: "active" as const },
+    orderBy: { label: "asc" as const },
+    include: { taxonomyTags: true },
   },
 } satisfies Prisma.LocationInclude;
 
@@ -178,7 +193,171 @@ export class LocationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
+    private readonly taxonomyTagService: TaxonomyTagService,
+    private readonly taxonomyConsumerCatalogService: TaxonomyConsumerCatalogService,
   ) {}
+
+  private async assertEnvironmentVariantTagId(tagId: string) {
+    const tag = (await this.taxonomyTagService.getById(tagId)) as FlatTaxonomyTag;
+    if (tag.namespace !== "ENVIRONMENT_VARIANT" || (tag.status ?? "ACTIVE") !== "ACTIVE") {
+      throw new BadRequestException("environmentTagId: invalid environment variant tag");
+    }
+    const catalog = await this.taxonomyConsumerCatalogService.getCatalog("location_environment");
+    if (!catalog.options.some((o) => o.id === tagId)) {
+      throw new BadRequestException("environmentTagId: tag not in environment catalog");
+    }
+    return tag;
+  }
+
+  private async assertFeatureTaxonomyTagIds(tagIds: string[]) {
+    if (tagIds.length === 0) return;
+    const unique = [...new Set(tagIds)];
+    for (const id of unique) {
+      try {
+        await this.taxonomyTagService.getById(id);
+      } catch {
+        throw new BadRequestException(`taxonomyTagIds: tag not found: ${id}`);
+      }
+    }
+  }
+
+  private async resolveEnvironmentInput(params: {
+    environmentTagId?: string | null;
+    type?: LocationType | null;
+    subType?: LocationSubType | null;
+  }) {
+    const tagId = params.environmentTagId?.trim() || null;
+    if (tagId) {
+      const tag = await this.assertEnvironmentVariantTagId(tagId);
+      return resolveEnvironmentFieldsFromTag(tag);
+    }
+    assertTypeSubTypeMatch(params.type ?? undefined, params.subType ?? undefined);
+    return {
+      environmentTagId: null as string | null,
+      environmentGroupSlug: null as string | null,
+      type: params.type ?? null,
+      subType: params.subType ?? null,
+    };
+  }
+
+  private async assertSeatTaxonomyTagIds(tagIds: string[]) {
+    await this.assertFeatureTaxonomyTagIds(tagIds);
+  }
+
+  private async assertSeatsInput(params: {
+    seats: CreateSeatInput[];
+    seatLayoutMode: SeatLayoutMode;
+  }) {
+    if (params.seats.length === 0) return;
+    if (params.seatLayoutMode === "simple_counter") {
+      throw new BadRequestException(
+        "seats: bulk create not allowed for simple_counter mode",
+      );
+    }
+    for (const seat of params.seats) {
+      await this.assertSeatTaxonomyTagIds(seat.taxonomyTagIds ?? []);
+    }
+    buildSeatCreateInputs(params.seats, params.seatLayoutMode);
+  }
+
+  async computeOccupiedCount(locationId: string): Promise<number> {
+    const location = await this.prisma.location.findUnique({
+      where: { id: locationId },
+      select: { seatLayoutMode: true },
+    });
+    if (!location) return 0;
+
+    if (location.seatLayoutMode === "simple_counter") {
+      return this.prisma.plant.count({ where: { locationId } });
+    }
+
+    return this.prisma.seat.count({
+      where: {
+        locationId,
+        status: "active",
+        plantId: { not: null },
+      },
+    });
+  }
+
+  private async syncOccupiedCount(locationId: string) {
+    const occupiedCount = await this.computeOccupiedCount(locationId);
+    await this.prisma.location.update({
+      where: { id: locationId },
+      data: { occupiedCount },
+    });
+    return occupiedCount;
+  }
+
+  private async replaceSeats(params: {
+    locationId: string;
+    seatLayoutMode: SeatLayoutMode;
+    seats: CreateSeatInput[];
+  }) {
+    await this.assertSeatsInput({
+      seats: params.seats,
+      seatLayoutMode: params.seatLayoutMode,
+    });
+
+    const creates = buildSeatCreateInputs(params.seats, params.seatLayoutMode);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.seat.updateMany({
+        where: { locationId: params.locationId, status: "active" },
+        data: { status: "archived" },
+      });
+
+      for (const seat of creates) {
+        await tx.seat.create({
+          data: {
+            locationId: params.locationId,
+            label: seat.label,
+            width: seat.width ?? undefined,
+            depth: seat.depth ?? undefined,
+            height: seat.height ?? undefined,
+            position: seat.position ?? undefined,
+            ...(seat.taxonomyTags && { taxonomyTags: seat.taxonomyTags }),
+          },
+        });
+      }
+    });
+
+    await this.syncOccupiedCount(params.locationId);
+  }
+
+  private async createSeatsForLocation(params: {
+    locationId: string;
+    seatLayoutMode: SeatLayoutMode;
+    seats: CreateSeatInput[];
+  }) {
+    if (params.seats.length === 0) return;
+    await this.assertSeatsInput({
+      seats: params.seats,
+      seatLayoutMode: params.seatLayoutMode,
+    });
+    const creates = buildSeatCreateInputs(params.seats, params.seatLayoutMode);
+    for (const seat of creates) {
+      await this.prisma.seat.create({
+        data: {
+          locationId: params.locationId,
+          label: seat.label,
+          width: seat.width ?? undefined,
+          depth: seat.depth ?? undefined,
+          height: seat.height ?? undefined,
+          position: seat.position ?? undefined,
+          ...(seat.taxonomyTags && { taxonomyTags: seat.taxonomyTags }),
+        },
+      });
+    }
+    await this.syncOccupiedCount(params.locationId);
+  }
+
+  private buildTaxonomyTagCreates(tagIds: string[] | undefined) {
+    if (!tagIds?.length) return undefined;
+    return {
+      create: tagIds.map((taxonomyTagId) => ({ taxonomyTagId })),
+    };
+  }
 
   private async assertDiariesOwnedByUser(userId: string, diaryIds: string[]) {
     if (diaryIds.length === 0) return;
@@ -274,6 +453,11 @@ export class LocationsService {
     name: string;
     parentLocationId?: string | null;
     status?: "active" | "archived" | null;
+    environmentTagId?: string | null;
+    dimensions?: Prisma.InputJsonValue | null;
+    seatLayoutMode?: SeatLayoutMode | null;
+    layoutMeta?: Prisma.InputJsonValue | null;
+    taxonomyTagIds?: string[] | null;
     type?: LocationType | null;
     subType?: LocationSubType | null;
     wateringType?: "manual" | "drip" | "hydroponics" | "aeroponics" | null;
@@ -282,8 +466,15 @@ export class LocationsService {
     occupiedSlots?: number | null;
     diaryIds?: string[] | null;
     specBlocks?: LocationSpecBlockInput[] | null;
+    seats?: CreateSeatInput[] | null;
   }) {
-    assertTypeSubTypeMatch(params.type ?? undefined, params.subType ?? undefined);
+    const env = await this.resolveEnvironmentInput({
+      environmentTagId: params.environmentTagId,
+      type: params.type,
+      subType: params.subType,
+    });
+    const featureTagIds = params.taxonomyTagIds ?? [];
+    await this.assertFeatureTaxonomyTagIds(featureTagIds);
     const blocks = params.specBlocks ?? undefined;
     if (blocks?.length) {
       for (const b of blocks) assertSpecBlockPayload(b.kind, b);
@@ -299,7 +490,10 @@ export class LocationsService {
       });
     }
 
-    return this.prisma.location.create({
+    const seatLayoutMode = params.seatLayoutMode ?? SeatLayoutMode.simple_counter;
+    const seats = params.seats ?? [];
+
+    const created = await this.prisma.location.create({
       data: {
         userId: params.userId,
         name: params.name,
@@ -307,8 +501,23 @@ export class LocationsService {
           parentLocationId: params.parentLocationId,
         }),
         ...(params.status != null && { status: params.status }),
-        ...(params.type !== undefined && { type: params.type }),
-        ...(params.subType !== undefined && { subType: params.subType }),
+        environmentTagId: env.environmentTagId,
+        environmentGroupSlug: env.environmentGroupSlug,
+        type: env.type,
+        subType: env.subType,
+        ...(params.dimensions !== undefined && {
+          dimensions:
+            params.dimensions === null
+              ? Prisma.JsonNull
+              : (params.dimensions as Prisma.InputJsonValue),
+        }),
+        seatLayoutMode,
+        ...(params.layoutMeta !== undefined && {
+          layoutMeta:
+            params.layoutMeta === null
+              ? Prisma.JsonNull
+              : (params.layoutMeta as Prisma.InputJsonValue),
+        }),
         ...(params.wateringType !== undefined && { wateringType: params.wateringType }),
         ...(params.description !== undefined && { description: params.description }),
         ...(params.capacity !== undefined && { capacity: params.capacity }),
@@ -316,12 +525,26 @@ export class LocationsService {
         ...(diaryIds.length > 0 && {
           diaries: { connect: diaryIds.map((id) => ({ id })) },
         }),
+        ...(featureTagIds.length > 0 && {
+          taxonomyTags: this.buildTaxonomyTagCreates(featureTagIds),
+        }),
         ...(blocks?.length && {
           specBlocks: { create: buildSpecBlockCreates(blocks) },
         }),
       },
       include: locationGraphqlInclude,
     });
+
+    if (seats.length > 0) {
+      await this.createSeatsForLocation({
+        locationId: created.id,
+        seatLayoutMode,
+        seats,
+      });
+      return this.getById({ userId: params.userId, id: created.id });
+    }
+
+    return created;
   }
 
   async update(params: {
@@ -330,6 +553,11 @@ export class LocationsService {
     name?: string | null;
     parentLocationId?: string | null;
     status?: "active" | "archived" | null;
+    environmentTagId?: string | null;
+    dimensions?: Prisma.InputJsonValue | null;
+    seatLayoutMode?: SeatLayoutMode | null;
+    layoutMeta?: Prisma.InputJsonValue | null;
+    taxonomyTagIds?: string[] | null;
     type?: LocationType | null;
     subType?: LocationSubType | null;
     wateringType?: "manual" | "drip" | "hydroponics" | "aeroponics" | null;
@@ -338,12 +566,27 @@ export class LocationsService {
     occupiedSlots?: number | null;
     diaryIds?: string[] | null;
     specBlocks?: LocationSpecBlockInput[] | null;
+    seats?: CreateSeatInput[] | null;
   }) {
     const existing = await this.getByIdBare({ userId: params.userId, id: params.id });
 
-    const nextType = params.type !== undefined ? params.type : existing.type;
-    const nextSubType = params.subType !== undefined ? params.subType : existing.subType;
-    assertTypeSubTypeMatch(nextType ?? undefined, nextSubType ?? undefined);
+    const env =
+      params.environmentTagId !== undefined ||
+      params.type !== undefined ||
+      params.subType !== undefined
+        ? await this.resolveEnvironmentInput({
+            environmentTagId:
+              params.environmentTagId !== undefined
+                ? params.environmentTagId
+                : existing.environmentTagId,
+            type: params.type !== undefined ? params.type : existing.type,
+            subType: params.subType !== undefined ? params.subType : existing.subType,
+          })
+        : null;
+
+    if (params.taxonomyTagIds != null) {
+      await this.assertFeatureTaxonomyTagIds(params.taxonomyTagIds);
+    }
 
     if (params.diaryIds != null) {
       await this.assertDiariesOwnedByUser(params.userId, params.diaryIds);
@@ -373,8 +616,25 @@ export class LocationsService {
         parentLocationId: params.parentLocationId,
       }),
       ...(params.status !== undefined && { status: params.status ?? undefined }),
-      ...(params.type !== undefined && { type: params.type }),
-      ...(params.subType !== undefined && { subType: params.subType }),
+      ...(env != null && {
+        environmentTagId: env.environmentTagId,
+        environmentGroupSlug: env.environmentGroupSlug,
+        type: env.type,
+        subType: env.subType,
+      }),
+      ...(params.dimensions !== undefined && {
+        dimensions:
+          params.dimensions === null
+            ? Prisma.JsonNull
+            : (params.dimensions as Prisma.InputJsonValue),
+      }),
+      ...(params.seatLayoutMode != null && { seatLayoutMode: params.seatLayoutMode }),
+      ...(params.layoutMeta !== undefined && {
+        layoutMeta:
+          params.layoutMeta === null
+            ? Prisma.JsonNull
+            : (params.layoutMeta as Prisma.InputJsonValue),
+      }),
       ...(params.wateringType !== undefined && { wateringType: params.wateringType }),
       ...(params.description !== undefined && { description: params.description }),
       ...(params.capacity !== undefined && { capacity: params.capacity }),
@@ -382,13 +642,21 @@ export class LocationsService {
       ...(params.diaryIds != null && {
         diaries: { set: params.diaryIds.map((id) => ({ id })) },
       }),
+      ...(params.taxonomyTagIds != null && {
+        taxonomyTags: {
+          deleteMany: {},
+          ...(params.taxonomyTagIds.length > 0 && {
+            create: params.taxonomyTagIds.map((taxonomyTagId) => ({ taxonomyTagId })),
+          }),
+        },
+      }),
     };
 
     if (params.specBlocks != null) {
       const replacementBlocks = params.specBlocks;
       return this.prisma.$transaction(async (tx) => {
         await tx.locationSpecBlock.deleteMany({ where: { locationId: params.id } });
-        return tx.location.update({
+        const updated = await tx.location.update({
           where: { id: params.id },
           data: {
             ...scalarData,
@@ -398,14 +666,34 @@ export class LocationsService {
           },
           include: locationGraphqlInclude,
         });
+        if (params.seats != null) {
+          await this.replaceSeats({
+            locationId: params.id,
+            seatLayoutMode: updated.seatLayoutMode,
+            seats: params.seats,
+          });
+          return this.getById({ userId: params.userId, id: params.id });
+        }
+        return updated;
       });
     }
 
-    return this.prisma.location.update({
+    const updated = await this.prisma.location.update({
       where: { id: params.id },
       data: scalarData,
       include: locationGraphqlInclude,
     });
+
+    if (params.seats != null) {
+      await this.replaceSeats({
+        locationId: params.id,
+        seatLayoutMode: updated.seatLayoutMode,
+        seats: params.seats,
+      });
+      return this.getById({ userId: params.userId, id: params.id });
+    }
+
+    return updated;
   }
 
   async delete(params: { userId: string; id: string }) {

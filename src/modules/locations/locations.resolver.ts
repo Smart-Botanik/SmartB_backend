@@ -1,10 +1,12 @@
 import { UseGuards } from "@nestjs/common";
-import { Args, Context, Mutation, Query, Resolver } from "@nestjs/graphql";
+import { Args, Context, Mutation, Parent, Query, ResolveField, Resolver } from "@nestjs/graphql";
 import type {
   LocationSubType,
   LocationType,
   LocationWateringType,
+  SeatLayoutMode,
 } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { Request } from "express";
 import { Role } from "@growing/contracts";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -13,8 +15,16 @@ import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { EventsService } from "../events/events.service";
 import type { LocationSpecBlockInput } from "./locations.service";
 import { LocationsService } from "./locations.service";
+import type { CreateSeatInput } from "./seat.util";
 
 type GqlRequest = Request & { user?: { userId?: string } };
+
+type LocationParent = {
+  id: string;
+  occupiedCount?: number;
+  seats?: unknown[];
+  taxonomyTags?: Array<{ taxonomyTagId: string }>;
+};
 
 function getUserIdFromReq(req: GqlRequest): string {
   const userId = req.user?.userId;
@@ -30,6 +40,21 @@ export class LocationsResolver {
     private readonly locationsService: LocationsService,
     private readonly eventsService: EventsService,
   ) {}
+
+  @ResolveField("taxonomyTagIds")
+  taxonomyTagIds(@Parent() location: LocationParent): string[] {
+    return (location.taxonomyTags ?? []).map((row) => row.taxonomyTagId);
+  }
+
+  @ResolveField("seats")
+  seats(@Parent() location: LocationParent) {
+    return location.seats ?? [];
+  }
+
+  @ResolveField("occupiedCount")
+  occupiedCount(@Parent() location: LocationParent) {
+    return this.locationsService.computeOccupiedCount(location.id);
+  }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.USER, Role.ADMIN)
@@ -78,6 +103,11 @@ export class LocationsResolver {
       name: string;
       parentLocationId?: string | null;
       status?: "active" | "archived" | null;
+      environmentTagId?: string | null;
+      dimensions?: Prisma.InputJsonValue | null;
+      seatLayoutMode?: SeatLayoutMode | null;
+      layoutMeta?: Prisma.InputJsonValue | null;
+      taxonomyTagIds?: string[] | null;
       type?: LocationType | null;
       subType?: LocationSubType | null;
       wateringType?: LocationWateringType | null;
@@ -86,6 +116,7 @@ export class LocationsResolver {
       occupiedSlots?: number | null;
       diaryIds?: string[] | null;
       specBlocks?: LocationSpecBlockInput[] | null;
+      seats?: CreateSeatInput[] | null;
     },
   ) {
     const userId = getUserIdFromReq(req);
@@ -94,6 +125,11 @@ export class LocationsResolver {
       name: input.name,
       parentLocationId: input.parentLocationId,
       status: input.status,
+      environmentTagId: input.environmentTagId,
+      dimensions: input.dimensions,
+      seatLayoutMode: input.seatLayoutMode,
+      layoutMeta: input.layoutMeta,
+      taxonomyTagIds: input.taxonomyTagIds,
       type: input.type,
       subType: input.subType,
       wateringType: input.wateringType,
@@ -102,6 +138,7 @@ export class LocationsResolver {
       occupiedSlots: input.occupiedSlots,
       diaryIds: input.diaryIds,
       specBlocks: input.specBlocks,
+      seats: input.seats,
     });
   }
 
@@ -116,6 +153,11 @@ export class LocationsResolver {
       name?: string | null;
       parentLocationId?: string | null;
       status?: "active" | "archived" | null;
+      environmentTagId?: string | null;
+      dimensions?: Prisma.InputJsonValue | null;
+      seatLayoutMode?: SeatLayoutMode | null;
+      layoutMeta?: Prisma.InputJsonValue | null;
+      taxonomyTagIds?: string[] | null;
       type?: LocationType | null;
       subType?: LocationSubType | null;
       wateringType?: LocationWateringType | null;
@@ -124,6 +166,7 @@ export class LocationsResolver {
       occupiedSlots?: number | null;
       diaryIds?: string[] | null;
       specBlocks?: LocationSpecBlockInput[] | null;
+      seats?: CreateSeatInput[] | null;
     },
   ) {
     const userId = getUserIdFromReq(req);
@@ -133,6 +176,11 @@ export class LocationsResolver {
       name: input.name,
       parentLocationId: input.parentLocationId,
       status: input.status,
+      environmentTagId: input.environmentTagId,
+      dimensions: input.dimensions,
+      seatLayoutMode: input.seatLayoutMode,
+      layoutMeta: input.layoutMeta,
+      taxonomyTagIds: input.taxonomyTagIds,
       type: input.type,
       subType: input.subType,
       wateringType: input.wateringType,
@@ -141,6 +189,7 @@ export class LocationsResolver {
       occupiedSlots: input.occupiedSlots,
       diaryIds: input.diaryIds,
       specBlocks: input.specBlocks,
+      seats: input.seats,
     });
   }
 
