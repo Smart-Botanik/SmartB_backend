@@ -1,5 +1,6 @@
 import { UseGuards } from "@nestjs/common";
 import { PlantGroupStatus } from "@prisma/client";
+import { Role } from "@growing/contracts";
 import {
   Args,
   Context,
@@ -15,9 +16,10 @@ import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { EventsService } from "../events/events.service";
 import { locationGraphqlInclude } from "../locations/locations.service";
 import { cultivationUnitGraphqlInclude } from "../cultivation-units/cultivation-units.service";
+import { PlantPlacementService } from "./plant-placement.service";
 import { PlantService } from "./plant.service";
 
-type GqlRequest = Request & { user?: { userId?: string } };
+type GqlRequest = Request & { user?: { userId?: string; role?: Role } };
 
 function getUserIdFromReq(req: GqlRequest): string {
   const userId = req.user?.userId;
@@ -27,10 +29,20 @@ function getUserIdFromReq(req: GqlRequest): string {
   return userId;
 }
 
+function getUserContext(req: GqlRequest): { userId: string; role: Role } {
+  const userId = req.user?.userId;
+  const role = req.user?.role;
+  if (!userId || role === undefined) {
+    throw new Error("Missing user in request context");
+  }
+  return { userId, role };
+}
+
 @Resolver("Plant")
 export class PlantResolver {
   constructor(
     private readonly plantService: PlantService,
+    private readonly plantPlacementService: PlantPlacementService,
     private readonly prisma: PrismaService,
     private readonly eventsService: EventsService,
   ) {}
@@ -198,6 +210,109 @@ export class PlantResolver {
   deletePlant(@Context("req") req: GqlRequest, @Args("id") id: string) {
     const userId = getUserIdFromReq(req);
     return this.plantService.delete({ userId, id });
+  }
+
+  @UseGuards(GqlJwtAuthGuard)
+  @Mutation("plantPlacementPlan")
+  plantPlacementPlan(
+    @Context("req") req: GqlRequest,
+    @Args("plantId") plantId: string,
+    @Args("locationId") locationId: string,
+  ) {
+    const { userId, role } = getUserContext(req);
+    return this.plantPlacementService.plan({ userId, userRole: role, plantId, locationId });
+  }
+
+  @UseGuards(GqlJwtAuthGuard)
+  @Mutation("plantPlacementQueue")
+  plantPlacementQueue(
+    @Context("req") req: GqlRequest,
+    @Args("plantId") plantId: string,
+    @Args("locationId") locationId: string,
+  ) {
+    const { userId, role } = getUserContext(req);
+    return this.plantPlacementService.queue({ userId, userRole: role, plantId, locationId });
+  }
+
+  @UseGuards(GqlJwtAuthGuard)
+  @Mutation("plantPlacementSeat")
+  plantPlacementSeat(
+    @Context("req") req: GqlRequest,
+    @Args("plantId") plantId: string,
+    @Args("seatId", { nullable: true }) seatId?: string | null,
+    @Args("locationId", { nullable: true }) locationId?: string | null,
+  ) {
+    const { userId, role } = getUserContext(req);
+    return this.plantPlacementService.seat({
+      userId,
+      userRole: role,
+      plantId,
+      seatId,
+      locationId,
+    });
+  }
+
+  @UseGuards(GqlJwtAuthGuard)
+  @Mutation("plantTransplant")
+  plantTransplant(
+    @Context("req") req: GqlRequest,
+    @Args("plantId") plantId: string,
+    @Args("toSeatId") toSeatId: string,
+  ) {
+    const { userId, role } = getUserContext(req);
+    return this.plantPlacementService.transplant({
+      userId,
+      userRole: role,
+      plantId,
+      toSeatId,
+    });
+  }
+
+  @ResolveField("plannedLocation")
+  plannedLocation(@Parent() plant: { plannedLocationId?: string | null }) {
+    if (!plant.plannedLocationId) {
+      return null;
+    }
+    return this.prisma.location.findUnique({
+      where: { id: plant.plannedLocationId },
+      include: locationGraphqlInclude,
+    });
+  }
+
+  @ResolveField("currentSeat")
+  currentSeat(@Parent() plant: { currentSeatId?: string | null }) {
+    if (!plant.currentSeatId) {
+      return null;
+    }
+    return this.prisma.seat.findUnique({
+      where: { id: plant.currentSeatId },
+      include: { taxonomyTags: true },
+    });
+  }
+
+  @ResolveField("currentLocationId")
+  async currentLocationId(
+    @Parent() plant: {
+      placementStage?: string;
+      plannedLocationId?: string | null;
+      currentSeatId?: string | null;
+      locationId?: string | null;
+    },
+  ) {
+    if (plant.placementStage === "seated" && plant.currentSeatId) {
+      const seat = await this.prisma.seat.findUnique({
+        where: { id: plant.currentSeatId },
+        select: { locationId: true },
+      });
+      return seat?.locationId ?? plant.locationId ?? null;
+    }
+    if (
+      plant.placementStage === "planned" ||
+      plant.placementStage === "ready_to_plant"
+    ) {
+      return plant.plannedLocationId ?? null;
+    }
+    return plant.locationId ?? null;
   }
 
   @ResolveField("location")

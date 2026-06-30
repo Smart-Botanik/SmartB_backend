@@ -289,6 +289,10 @@ export class LocationsService {
     return occupiedCount;
   }
 
+  async refreshOccupiedCount(locationId: string): Promise<number> {
+    return this.syncOccupiedCount(locationId);
+  }
+
   private async replaceSeats(params: {
     locationId: string;
     seatLayoutMode: SeatLayoutMode;

@@ -42,6 +42,13 @@ enum PlantGroupStatus {
   cancelled
 }
 
+enum PlantPlacementStage {
+  none
+  planned
+  ready_to_plant
+  seated
+}
+
 /// Организационная группа растений (когорта). Удаление запрещено — только `cancelled`.
 model PlantGroup {
   id        String             @id @default(cuid())
@@ -61,31 +68,38 @@ model PlantGroup {
 }
 
 model Plant {
-  id                            String   @id @default(cuid())
+  id                            String              @id @default(cuid())
   userId                        String
   diaryId                       String?
   locationId                    String?
   cultivationUnitId             String?
-  cultivationUnitNudgeDismissed Boolean  @default(false)
+  cultivationUnitNudgeDismissed Boolean             @default(false)
   groupId                       String?
   name                          String
-  summarize                     String?  @default("")
+  summarize                     String?             @default("")
   current                       Json?
-  createdAt                     DateTime @default(now())
-  updatedAt                     DateTime @updatedAt
+  placementStage                PlantPlacementStage @default(none)
+  plannedLocationId             String?
+  currentSeatId                 String?             @unique
+  createdAt                     DateTime            @default(now())
+  updatedAt                     DateTime            @updatedAt
 
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   diary             Diary?            @relation(fields: [diaryId], references: [id], onDelete: SetNull)
   location          Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  plannedLocation   Location?         @relation("PlantPlannedLocation", fields: [plannedLocationId], references: [id], onDelete: SetNull)
   cultivationUnit   CultivationUnit?  @relation(fields: [cultivationUnitId], references: [id], onDelete: SetNull)
   group             PlantGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  seat              Seat?
+  currentSeat       Seat?             @relation("PlantCurrentSeat", fields: [currentSeatId], references: [id], onDelete: SetNull)
+  seat              Seat?             @relation("SeatOccupant")
 
   @@index([userId])
   @@index([diaryId])
   @@index([locationId])
+  @@index([plannedLocationId])
   @@index([cultivationUnitId])
   @@index([groupId])
+  @@index([placementStage])
 }
 
 model Event {
@@ -464,6 +478,7 @@ model Location {
   parent                    Location?                  @relation("LocationTree", fields: [parentLocationId], references: [id], onDelete: SetNull)
   children                  Location[]                 @relation("LocationTree")
   plants                    Plant[]
+  plannedPlants             Plant[]                    @relation("PlantPlannedLocation")
   diaries                   Diary[]                    @relation("DiaryLocations")
   specBlocks                LocationSpecBlock[]
   taxonomyTags              LocationTaxonomyTag[]
@@ -512,7 +527,8 @@ model Seat {
   updatedAt  DateTime   @updatedAt
 
   location     Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  plant        Plant?            @relation(fields: [plantId], references: [id], onDelete: SetNull)
+  plant        Plant?            @relation("SeatOccupant", fields: [plantId], references: [id], onDelete: SetNull)
+  currentPlant Plant?            @relation("PlantCurrentSeat")
   taxonomyTags SeatTaxonomyTag[]
 
   @@unique([locationId, label])
