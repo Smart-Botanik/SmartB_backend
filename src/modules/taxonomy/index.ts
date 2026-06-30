@@ -1,5 +1,6 @@
 export { TaxonomyModule } from "./taxonomy.module";
 export { TaxonomyTagService } from "./taxonomy-tag.service";
+export { TaxonomyConsumerCatalogService } from "./taxonomy-consumer-catalog.service";
 export type {
   TaxonomyGroupDeleteStrategy,
   TaxonomyTagConnectResult,

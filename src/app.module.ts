@@ -13,6 +13,7 @@ import { EventsModule } from "./modules/events/events.module";
 import { MediaModule } from "./modules/media/media.module";
 import { PlantModule } from "./modules/plant/plant.module";
 import { LocationsModule } from "./modules/locations/locations.module";
+import { MetricsModule } from "./modules/metrics/metrics.module";
 import { CultivationUnitsModule } from "./modules/cultivation-units/cultivation-units.module";
 import { PrimitivesModule } from "./modules/primitives/primitives.module";
 import { RegistryModule } from "./modules/registry/registry.module";
@@ -58,6 +59,7 @@ import { HealthModule } from "./health/health.module";
     PrimitivesModule,
     RegistryModule,
     LocationsModule,
+    MetricsModule,
     CultivationUnitsModule,
     TagsModule,
   ],

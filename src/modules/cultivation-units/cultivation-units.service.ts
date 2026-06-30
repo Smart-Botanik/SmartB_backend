@@ -124,7 +124,7 @@ export class CultivationUnitsService {
   async create(params: {
     userId: string;
     name: string;
-    primaryLocationId: string;
+    primaryLocationId?: string | null;
     status?: "active" | "archived" | null;
     type?: LocationType | null;
     subType?: LocationSubType | null;
@@ -135,7 +135,11 @@ export class CultivationUnitsService {
     additionalLocationIds?: string[] | null;
   }) {
     assertTypeSubTypeMatch(params.type ?? undefined, params.subType ?? undefined);
-    await this.assertLocationOwned(params.userId, params.primaryLocationId);
+
+    const primaryLocationId = params.primaryLocationId?.trim() || null;
+    if (primaryLocationId) {
+      await this.assertLocationOwned(params.userId, primaryLocationId);
+    }
 
     const blocks = params.specBlocks ?? undefined;
     validateSpecBlocks(blocks);
@@ -146,7 +150,7 @@ export class CultivationUnitsService {
 
     const additionalIds = params.additionalLocationIds ?? [];
     for (const locationId of additionalIds) {
-      if (locationId === params.primaryLocationId) continue;
+      if (primaryLocationId && locationId === primaryLocationId) continue;
       await this.assertLocationOwned(params.userId, locationId);
     }
 
@@ -155,7 +159,7 @@ export class CultivationUnitsService {
         data: {
           userId: params.userId,
           name: params.name,
-          primaryLocationId: params.primaryLocationId,
+          ...(primaryLocationId && { primaryLocationId }),
           ...(params.status != null && { status: params.status }),
           ...(params.type !== undefined && { type: params.type }),
           ...(params.subType !== undefined && { subType: params.subType }),
@@ -167,19 +171,21 @@ export class CultivationUnitsService {
           ...(blocks?.length && {
             specBlocks: { create: buildCultivationUnitSpecBlockCreates(blocks) },
           }),
-          placements: {
-            create: {
-              locationId: params.primaryLocationId,
-              role: CultivationUnitPlacementRole.primary,
-              sortOrder: 0,
+          ...(primaryLocationId && {
+            placements: {
+              create: {
+                locationId: primaryLocationId,
+                role: CultivationUnitPlacementRole.primary,
+                sortOrder: 0,
+              },
             },
-          },
+          }),
         },
         include: cultivationUnitGraphqlInclude,
       });
 
       for (const [index, locationId] of additionalIds.entries()) {
-        if (locationId === params.primaryLocationId) continue;
+        if (primaryLocationId && locationId === primaryLocationId) continue;
         await tx.cultivationUnitPlacement.create({
           data: {
             locationId,
@@ -190,7 +196,7 @@ export class CultivationUnitsService {
         });
       }
 
-      if (additionalIds.some((id) => id !== params.primaryLocationId)) {
+      if (additionalIds.some((id) => !primaryLocationId || id !== primaryLocationId)) {
         return tx.cultivationUnit.findUniqueOrThrow({
           where: { id: unit.id },
           include: cultivationUnitGraphqlInclude,
@@ -212,6 +218,7 @@ export class CultivationUnitsService {
     occupiedSlots?: number | null;
     diaryIds?: string[] | null;
     specBlocks?: CultivationUnitSpecBlockInput[] | null;
+    current?: Prisma.InputJsonValue | null;
   }) {
     const existing = await this.getByIdBare({ userId: params.userId, id: params.id });
 
@@ -239,6 +246,7 @@ export class CultivationUnitsService {
       ...(params.subType !== undefined && { subType: params.subType }),
       ...(params.capacity !== undefined && { capacity: params.capacity }),
       ...(params.occupiedSlots !== undefined && { occupiedSlots: params.occupiedSlots }),
+      ...(params.current !== undefined && { current: params.current ?? Prisma.JsonNull }),
       ...(params.diaryIds != null && {
         diaries: { set: params.diaryIds.map((id) => ({ id })) },
       }),
@@ -266,6 +274,33 @@ export class CultivationUnitsService {
       data: scalarData,
       include: cultivationUnitGraphqlInclude,
     });
+  }
+
+  async createEvent(params: {
+    userId: string;
+    cultivationUnitId: string;
+    actionPath: string;
+    payloadJson: string;
+  }) {
+    await this.getByIdBare({ userId: params.userId, id: params.cultivationUnitId });
+
+    let payload: Prisma.InputJsonValue;
+    try {
+      payload = JSON.parse(params.payloadJson) as Prisma.InputJsonValue;
+    } catch {
+      throw new BadRequestException("payloadJson: invalid JSON");
+    }
+
+    await this.prisma.event.create({
+      data: {
+        actionPath: params.actionPath.trim(),
+        targetType: "CultivationUnit",
+        targetId: params.cultivationUnitId,
+        payload,
+      },
+    });
+
+    return this.getById({ userId: params.userId, id: params.cultivationUnitId });
   }
 
   async delete(params: { userId: string; id: string }) {

@@ -3,6 +3,7 @@ import * as bcrypt from "bcrypt";
 import { seedActionPathRegistry } from "../src/scripts/seed-action-path-registry";
 import { seedRegistryFieldSpecs } from "../src/scripts/seed-registry-field-specs";
 import { seedSiteContent } from "../src/scripts/seed-site-content";
+import { seedDevLocations } from "../src/scripts/seed-dev-locations";
 import { seedTaxonomyTags } from "../src/scripts/run-seed-taxonomy-tags";
 
 const prisma = new PrismaClient();
@@ -112,6 +113,9 @@ async function main() {
 
   const siteContentResult = await seedSiteContent(prisma);
   console.log("Seeded site content:", siteContentResult);
+
+  const devLocationsResult = await seedDevLocations(prisma);
+  console.log("Seeded dev locations (REW-01-6):", devLocationsResult);
 
   console.log("Seeding finished.");
 }

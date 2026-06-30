@@ -35,6 +35,8 @@ model User {
   diaries           Diary[]
   locations         Location[]
   cultivationUnits  CultivationUnit[]
+  locationGroups    LocationGroup[]
+  metrics           Metric[]
 }
 
 enum PlantGroupStatus {
@@ -92,6 +94,7 @@ model Plant {
   group             PlantGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
   currentSeat       Seat?             @relation("PlantCurrentSeat", fields: [currentSeatId], references: [id], onDelete: SetNull)
   seat              Seat?             @relation("SeatOccupant")
+  metricMembers     MetricPlantMember[]
 
   @@index([userId])
   @@index([diaryId])
@@ -485,6 +488,8 @@ model Location {
   primaryCultivationUnits   CultivationUnit[]          @relation("CultivationUnitPrimaryLocation")
   cultivationUnitPlacements CultivationUnitPlacement[]
   seats                     Seat[]
+  locationGroupMembers      LocationGroupMember[]
+  metricMembers             MetricLocationMember[]
 
   @@index([userId])
   @@index([userId, status])
@@ -533,6 +538,89 @@ model Seat {
 
   @@unique([locationId, label])
   @@index([locationId, status])
+}
+
+// --- REW-04 LocationGroup -----------------------------------------------------
+
+/// Named M2M grouping of Locations (spatial/organizational). Not Metrics — ADR-0013 §3.
+model LocationGroup {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members LocationGroupMember[]
+
+  @@index([userId])
+}
+
+model LocationGroupMember {
+  locationGroupId String
+  locationId      String
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  locationGroup LocationGroup @relation(fields: [locationGroupId], references: [id], onDelete: Cascade)
+  location      Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([locationGroupId, locationId])
+  @@index([locationId])
+}
+
+// --- REW-05 Metrics -----------------------------------------------------------
+
+enum MetricStatus {
+  active
+  archived
+}
+
+/// Analytics/dashboard grouping (graphs, timeline). Not LocationGroup — ADR-0014.
+model Metric {
+  id           String       @id @default(cuid())
+  userId       String
+  name         String
+  description  String?
+  status       MetricStatus @default(active)
+  /// v1: { "widgets": [{ "kind": "location"|"plant", "targetId"?: string }] }
+  displayPrefs Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locationMembers MetricLocationMember[]
+  plantMembers    MetricPlantMember[]
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+model MetricLocationMember {
+  metricId   String
+  locationId String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  metric   Metric   @relation(fields: [metricId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([metricId, locationId])
+  @@index([locationId])
+}
+
+model MetricPlantMember {
+  metricId  String
+  plantId   String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  metric Metric @relation(fields: [metricId], references: [id], onDelete: Cascade)
+  plant  Plant  @relation(fields: [plantId], references: [id], onDelete: Cascade)
+
+  @@id([metricId, plantId])
+  @@index([plantId])
 }
 
 model SeatTaxonomyTag {

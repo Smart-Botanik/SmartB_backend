@@ -15,6 +15,7 @@ import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { EventsService } from "../events/events.service";
 import type { LocationSpecBlockInput } from "./locations.service";
 import { LocationsService } from "./locations.service";
+import { LocationGroupsService } from "./location-groups.service";
 import type { CreateSeatInput } from "./seat.util";
 
 type GqlRequest = Request & { user?: { userId?: string } };
@@ -38,6 +39,7 @@ function getUserIdFromReq(req: GqlRequest): string {
 export class LocationsResolver {
   constructor(
     private readonly locationsService: LocationsService,
+    private readonly locationGroupsService: LocationGroupsService,
     private readonly eventsService: EventsService,
   ) {}
 
@@ -54,6 +56,14 @@ export class LocationsResolver {
   @ResolveField("occupiedCount")
   occupiedCount(@Parent() location: LocationParent) {
     return this.locationsService.computeOccupiedCount(location.id);
+  }
+
+  @ResolveField("locationGroups")
+  locationGroups(@Context("req") req: GqlRequest, @Parent() location: LocationParent) {
+    return this.locationGroupsService.listForLocation({
+      userId: getUserIdFromReq(req),
+      locationId: location.id,
+    });
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)

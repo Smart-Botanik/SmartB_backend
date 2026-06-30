@@ -1,6 +1,11 @@
 import { UseGuards } from "@nestjs/common";
 import { Args, Context, Mutation, Query, Resolver } from "@nestjs/graphql";
-import type { CultivationUnitPlacementRole, LocationSubType, LocationType } from "@prisma/client";
+import type {
+  CultivationUnitPlacementRole,
+  LocationSubType,
+  LocationType,
+  Prisma,
+} from "@prisma/client";
 import type { Request } from "express";
 import { Role } from "@growing/contracts";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -19,6 +24,11 @@ function getUserIdFromReq(req: GqlRequest): string {
   return userId;
 }
 
+/**
+ * Legacy CultivationUnit API — sunset REW-03 (ADR-0013).
+ * Resolvers remain for dual-read; schema fields marked @deprecated.
+ * Prefer locations module + FE adapter (FE-API-REW-1c).
+ */
 @Resolver("CultivationUnit")
 export class CultivationUnitsResolver {
   constructor(private readonly cultivationUnitsService: CultivationUnitsService) {}
@@ -49,7 +59,7 @@ export class CultivationUnitsResolver {
     @Args("input")
     input: {
       name: string;
-      primaryLocationId: string;
+      primaryLocationId?: string | null;
       status?: "active" | "archived" | null;
       type?: LocationType | null;
       subType?: LocationSubType | null;
@@ -82,12 +92,30 @@ export class CultivationUnitsResolver {
       occupiedSlots?: number | null;
       diaryIds?: string[] | null;
       specBlocks?: CultivationUnitSpecBlockInput[] | null;
+      current?: Prisma.InputJsonValue | null;
     },
   ) {
     return this.cultivationUnitsService.update({
       userId: getUserIdFromReq(req),
       id,
       ...input,
+    });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.USER, Role.ADMIN)
+  @Mutation("createCultivationUnitEvent")
+  createCultivationUnitEvent(
+    @Context("req") req: GqlRequest,
+    @Args("cultivationUnitId") cultivationUnitId: string,
+    @Args("actionPath") actionPath: string,
+    @Args("payloadJson") payloadJson: string,
+  ) {
+    return this.cultivationUnitsService.createEvent({
+      userId: getUserIdFromReq(req),
+      cultivationUnitId,
+      actionPath,
+      payloadJson,
     });
   }
 

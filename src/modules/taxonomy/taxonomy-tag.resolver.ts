@@ -18,6 +18,7 @@ import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import type { TaxonomyGroupDeleteStrategy } from "./taxonomy-tag.service";
 import { TaxonomyTagService } from "./taxonomy-tag.service";
+import { TaxonomyConsumerCatalogService } from "./taxonomy-consumer-catalog.service";
 
 type TTaxonomyTagRecord = {
   id: string;
@@ -26,11 +27,19 @@ type TTaxonomyTagRecord = {
 
 @Resolver("TaxonomyTag")
 export class TaxonomyTagResolver {
-  constructor(private readonly taxonomyTagService: TaxonomyTagService) {}
+  constructor(
+    private readonly taxonomyTagService: TaxonomyTagService,
+    private readonly taxonomyConsumerCatalogService: TaxonomyConsumerCatalogService,
+  ) {}
 
   @ResolveField("childIds")
   childIds(@Parent() tag: TTaxonomyTagRecord) {
     return (tag.children ?? []).map(child => child.id);
+  }
+
+  @ResolveField("children")
+  children(@Parent() tag: TTaxonomyTagRecord) {
+    return tag.children ?? [];
   }
 
   @UseGuards(GqlJwtAuthGuard)
@@ -82,6 +91,12 @@ export class TaxonomyTagResolver {
   @Query("taxonomyTagsByKeys")
   taxonomyTagsByKeys(@Args("keys", { type: () => [String] }) keys: string[]) {
     return this.taxonomyTagService.tagsByKeys(keys);
+  }
+
+  @UseGuards(GqlJwtAuthGuard)
+  @Query("taxonomyConsumerCatalog")
+  taxonomyConsumerCatalog(@Args("profile") profile: string) {
+    return this.taxonomyConsumerCatalogService.getCatalog(profile);
   }
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)

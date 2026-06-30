@@ -8,6 +8,7 @@ import { TaxonomyTagResolver } from "./taxonomy-tag.resolver";
 import { TaxonomyTagService } from "./taxonomy-tag.service";
 import { TaxonomyRemoteGraphqlClient } from "./taxonomy-remote.graphql-client";
 import { TaxonomyTagRemoteService } from "./taxonomy-tag.remote-service";
+import { TaxonomyConsumerCatalogService } from "./taxonomy-consumer-catalog.service";
 
 /**
  * Bounded context: TaxonomyScope + TaxonomyTag — remote-only after BK-MS-TAX-3 cutover.
@@ -19,8 +20,9 @@ import { TaxonomyTagRemoteService } from "./taxonomy-tag.remote-service";
     TaxonomyTagRemoteService,
     { provide: TaxonomyTagService, useClass: TaxonomyTagRemoteService },
     TaxonomyTagResolver,
+    TaxonomyConsumerCatalogService,
   ],
-  exports: [TaxonomyTagService],
+  exports: [TaxonomyTagService, TaxonomyConsumerCatalogService],
 })
 export class TaxonomyModule implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
