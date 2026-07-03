@@ -91,6 +91,42 @@ export class MetricsResolver {
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.USER, Role.ADMIN)
+  @Query("metricActivity")
+  metricActivity(
+    @Context("req") req: GqlRequest,
+    @Args("metricId") metricId: string,
+    @Args("limit", { nullable: true }) limit?: number,
+    @Args("offset", { nullable: true }) offset?: number,
+  ) {
+    return this.metricsService.listActivity({
+      userId: getUserIdFromReq(req),
+      metricId,
+      limit,
+      offset,
+    });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.USER, Role.ADMIN)
+  @Query("metricWateringChart")
+  metricWateringChart(
+    @Context("req") req: GqlRequest,
+    @Args("metricId") metricId: string,
+    @Args("from", { nullable: true }) from?: Date,
+    @Args("to", { nullable: true }) to?: Date,
+    @Args("limit", { nullable: true }) limit?: number,
+  ) {
+    return this.metricsService.buildWateringChart({
+      userId: getUserIdFromReq(req),
+      metricId,
+      from,
+      to,
+      limit,
+    });
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.USER, Role.ADMIN)
   @Mutation("createMetric")
   createMetric(
     @Context("req") req: GqlRequest,

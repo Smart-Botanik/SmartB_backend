@@ -278,6 +278,8 @@ const PLANT_FIELD_SPECS: TFieldSeed[] = [
 const CLIMATE_OBSERVATION_PROFILE_KEY = "climate.observation.event.v1";
 const SIZE_OBSERVATION_PROFILE_KEY = "size.observation.event.v1";
 const HEALTH_TREATMENT_PROFILE_KEY = "health.treatment.event.v1";
+const HEALTH_RESOLVE_PROFILE_KEY = "health.resolve.event.v1";
+const HEALTH_UPDATE_PROFILE_KEY = "health.update.event.v1";
 const PERIOD_CHANGE_PROFILE_KEY = "period.change.event.v1";
 
 const HEALTH_TREATMENT_PRODUCT_OPTIONS = [
@@ -1202,6 +1204,24 @@ export async function seedRegistryFieldSpecs(prisma: PrismaClient): Promise<{
       key: HEALTH_TREATMENT_PROFILE_KEY,
       title: "Health treatment event v1",
       description: "Plant health treatment (plant.health.treatment).",
+      fieldIds: [
+        "plant.treatment.product",
+        "plant.treatment.method",
+        "plant.treatment.notes",
+      ],
+      requiredFieldId: "plant.treatment.product",
+    },
+    {
+      key: HEALTH_RESOLVE_PROFILE_KEY,
+      title: "Health resolve event v1",
+      description: "Plant health issue resolved (plant.health.resolve).",
+      fieldIds: ["plant.treatment.product", "plant.treatment.notes"],
+      requiredFieldId: "plant.treatment.product",
+    },
+    {
+      key: HEALTH_UPDATE_PROFILE_KEY,
+      title: "Health update event v1",
+      description: "Plant health treatment update (plant.health.update).",
       fieldIds: [
         "plant.treatment.product",
         "plant.treatment.method",

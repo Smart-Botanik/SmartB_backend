@@ -79,22 +79,34 @@ export class PlantProjectorService {
       patch.last_watered_at = event.timestamp.toISOString();
 
       const nutrient = getValueAtPayloadPath(watering, "nutrient");
+      const solution = getValueAtPayloadPath(watering, "solution");
+      const nutrientOrSolution = isPlainObject(nutrient)
+        ? nutrient
+        : isPlainObject(solution)
+          ? solution
+          : null;
       const drainage = getValueAtPayloadPath(watering, "drainage");
 
       const ph =
-        (typeof getValueAtPayloadPath(nutrient, "ph") === "number"
-          ? (getValueAtPayloadPath(nutrient, "ph") as number)
+        (typeof getValueAtPayloadPath(nutrientOrSolution, "ph") === "number"
+          ? (getValueAtPayloadPath(nutrientOrSolution, "ph") as number)
           : undefined) ??
         (typeof getValueAtPayloadPath(drainage, "ph") === "number"
           ? (getValueAtPayloadPath(drainage, "ph") as number)
           : undefined);
 
       const ppm =
-        (typeof getValueAtPayloadPath(nutrient, "ppm") === "number"
-          ? (getValueAtPayloadPath(nutrient, "ppm") as number)
+        (typeof getValueAtPayloadPath(nutrientOrSolution, "ppm") === "number"
+          ? (getValueAtPayloadPath(nutrientOrSolution, "ppm") as number)
+          : undefined) ??
+        (typeof getValueAtPayloadPath(nutrientOrSolution, "tds") === "number"
+          ? (getValueAtPayloadPath(nutrientOrSolution, "tds") as number)
           : undefined) ??
         (typeof getValueAtPayloadPath(drainage, "ppm") === "number"
           ? (getValueAtPayloadPath(drainage, "ppm") as number)
+          : undefined) ??
+        (typeof getValueAtPayloadPath(drainage, "tds") === "number"
+          ? (getValueAtPayloadPath(drainage, "tds") as number)
           : undefined);
 
       if (ph !== undefined) {
@@ -103,6 +115,16 @@ export class PlantProjectorService {
       if (ppm !== undefined) {
         patch.last_ppm = ppm;
       }
+    }
+
+    if (event.actionPath === "plant.health.resolve") {
+      patch.health_issue_active = false;
+      patch.treatment_resolved_at = event.timestamp.toISOString();
+    } else if (
+      event.actionPath === "plant.health.treatment" ||
+      event.actionPath === "plant.health.update"
+    ) {
+      patch.health_issue_active = true;
     }
 
     return patch;

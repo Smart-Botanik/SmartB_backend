@@ -10,6 +10,12 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { EventsService } from "../events/events.service";
 import { PlantService } from "../plant/plant.service";
 import { parseMetricDisplayPrefs } from "./metric-display-prefs.util";
+import { collectPlantIdsFromProjection } from "./metric-plant-ids.util";
+import {
+  buildWateringChartFromEvents,
+  METRIC_WATERING_CHART_ACTION_PATH,
+  METRIC_WATERING_CHART_PROFILE_KEY,
+} from "./metric-watering-chart.util";
 import {
   buildMetricPlantProjection,
   metricPlantProjectionInclude,
@@ -400,5 +406,107 @@ export class MetricsService {
 
     const freshPlant = await this.plantService.getById({ userId: params.userId, id: plant.id });
     return { metric, plant: freshPlant, event };
+  }
+
+  async listActivity(params: {
+    userId: string;
+    metricId: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    await this.getOwnedMetricOrThrow(params.userId, params.metricId);
+    const projection = await this.buildProjection({
+      userId: params.userId,
+      metricId: params.metricId,
+    });
+    const plantIds = collectPlantIdsFromProjection(projection);
+    if (plantIds.length === 0) {
+      return { items: [], total: 0 };
+    }
+
+    const limit = Math.min(Math.max(params.limit ?? 40, 1), 200);
+    const offset = Math.max(params.offset ?? 0, 0);
+    const where: Prisma.EventWhereInput = {
+      targetType: "Plant",
+      targetId: { in: plantIds },
+    };
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.event.findMany({
+        where,
+        orderBy: [{ timestamp: "desc" }, { id: "desc" }],
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.event.count({ where }),
+    ]);
+
+    return { items, total };
+  }
+
+  async buildWateringChart(params: {
+    userId: string;
+    metricId: string;
+    from?: Date;
+    to?: Date;
+    limit?: number;
+  }) {
+    await this.getOwnedMetricOrThrow(params.userId, params.metricId);
+    const projection = await this.buildProjection({
+      userId: params.userId,
+      metricId: params.metricId,
+    });
+    const plantIds = collectPlantIdsFromProjection(projection);
+
+    const profile = await this.prisma.registryProfile.findUnique({
+      where: { key: METRIC_WATERING_CHART_PROFILE_KEY },
+      include: {
+        fields: {
+          include: { fieldSpec: true },
+          orderBy: { position: "asc" },
+        },
+      },
+    });
+
+    const chartFields =
+      profile?.fields.map((row) => ({
+        fieldId: row.fieldSpec.fieldId,
+        label: row.fieldSpec.label,
+        semanticKind: row.fieldSpec.semanticKind,
+        unit: row.fieldSpec.unit,
+        canonicalPath: row.fieldSpec.canonicalPath,
+      })) ?? [];
+
+    if (plantIds.length === 0 || chartFields.length === 0) {
+      return buildWateringChartFromEvents({ fields: chartFields, events: [] });
+    }
+
+    const eventLimit = Math.min(Math.max(params.limit ?? 500, 1), 2000);
+    const timestampFilter: Prisma.DateTimeFilter = {};
+    if (params.from) {
+      timestampFilter.gte = params.from;
+    }
+    if (params.to) {
+      timestampFilter.lte = params.to;
+    }
+
+    const events = await this.prisma.event.findMany({
+      where: {
+        targetType: "Plant",
+        targetId: { in: plantIds },
+        actionPath: METRIC_WATERING_CHART_ACTION_PATH,
+        ...(Object.keys(timestampFilter).length > 0 ? { timestamp: timestampFilter } : {}),
+      },
+      orderBy: [{ timestamp: "asc" }, { id: "asc" }],
+      take: eventLimit,
+      select: {
+        id: true,
+        targetId: true,
+        payload: true,
+        timestamp: true,
+      },
+    });
+
+    return buildWateringChartFromEvents({ fields: chartFields, events });
   }
 }

@@ -6,6 +6,7 @@ import { seedSiteContent } from "../src/scripts/seed-site-content";
 import { seedDevLocationGroups } from "../src/scripts/seed-dev-location-groups";
 import { seedDevLocations } from "../src/scripts/seed-dev-locations";
 import { seedDevMetrics } from "../src/scripts/seed-dev-metrics";
+import { seedDevPlantEvents } from "../src/scripts/seed-dev-plant-events";
 import { seedDevPlantPlacement } from "../src/scripts/seed-dev-plant-placement";
 import { seedTaxonomyTags } from "../src/scripts/run-seed-taxonomy-tags";
 
@@ -128,6 +129,9 @@ async function main() {
 
   const devMetricsResult = await seedDevMetrics(prisma);
   console.log("Seeded dev metrics (REW-05):", devMetricsResult);
+
+  const devPlantEventsResult = await seedDevPlantEvents(prisma);
+  console.log("Seeded dev plant events (REW-07):", devPlantEventsResult);
 
   console.log("Seeding finished.");
 }

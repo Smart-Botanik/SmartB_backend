@@ -40,10 +40,12 @@
     "db:verify:plant-placement": "ts-node src/scripts/verify-plant-placement.ts",
     "db:verify:metrics": "ts-node src/scripts/verify-metrics.ts",
     "db:verify:plant-events": "ts-node src/scripts/verify-plant-events.ts",
+    "db:verify:metric-read-models": "ts-node src/scripts/verify-metric-read-models.ts",
     "db:backfill:plant-placement": "ts-node src/scripts/backfill-plant-placement.ts",
     "db:seed:location-groups": "ts-node src/scripts/run-seed-dev-location-groups.ts",
     "db:seed:plant-placement": "ts-node src/scripts/run-seed-dev-plant-placement.ts",
-    "db:seed:metrics": "ts-node src/scripts/run-seed-dev-metrics.ts"
+    "db:seed:metrics": "ts-node src/scripts/run-seed-dev-metrics.ts",
+    "db:seed:plant-events": "ts-node src/scripts/run-seed-dev-plant-events.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
