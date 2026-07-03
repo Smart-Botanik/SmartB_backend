@@ -3,7 +3,10 @@ import * as bcrypt from "bcrypt";
 import { seedActionPathRegistry } from "../src/scripts/seed-action-path-registry";
 import { seedRegistryFieldSpecs } from "../src/scripts/seed-registry-field-specs";
 import { seedSiteContent } from "../src/scripts/seed-site-content";
+import { seedDevLocationGroups } from "../src/scripts/seed-dev-location-groups";
 import { seedDevLocations } from "../src/scripts/seed-dev-locations";
+import { seedDevMetrics } from "../src/scripts/seed-dev-metrics";
+import { seedDevPlantPlacement } from "../src/scripts/seed-dev-plant-placement";
 import { seedTaxonomyTags } from "../src/scripts/run-seed-taxonomy-tags";
 
 const prisma = new PrismaClient();
@@ -116,6 +119,15 @@ async function main() {
 
   const devLocationsResult = await seedDevLocations(prisma);
   console.log("Seeded dev locations (REW-01-6):", devLocationsResult);
+
+  const devLocationGroupsResult = await seedDevLocationGroups(prisma);
+  console.log("Seeded dev location groups (REW-04):", devLocationGroupsResult);
+
+  const devPlacementResult = await seedDevPlantPlacement(prisma);
+  console.log("Seeded dev plant placement (REW-06):", devPlacementResult);
+
+  const devMetricsResult = await seedDevMetrics(prisma);
+  console.log("Seeded dev metrics (REW-05):", devMetricsResult);
 
   console.log("Seeding finished.");
 }
