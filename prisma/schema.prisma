@@ -449,20 +449,11 @@ enum SeatLayoutMode {
 model Location {
   id               String                @id @default(cuid())
   userId           String
-  parentLocationId String?
   name             String
   status           LocationStatus        @default(active)
   current          Json?
-  /// Transitional bridge (ADR-0011 legacy). Sunset REW-03 — map to `environmentTagId`, then drop.
-  type             LocationType?
-  /// Transitional bridge (ADR-0011 legacy). Sunset REW-03 — map to `environmentTagId`, then drop.
-  subType          LocationSubType?
   wateringType     LocationWateringType?
   description      String?
-  /// @deprecated REW-01-3 — use `seatLayoutMode` + Seat / `occupiedCount`
-  capacity         Int?
-  /// @deprecated REW-01-3 — use `occupiedCount`
-  occupiedSlots    Int?
   /// Mandatory SoT (ADR-0013 §6): leaf `ENVIRONMENT_VARIANT`, scope `environment` (ADR-0012).
   environmentTagId String?
   /// Denormalized `indoor`|`outdoor`|`greenhouse` for SQL filters; derived from taxonomy parent on write.
@@ -478,8 +469,6 @@ model Location {
   updatedAt        DateTime              @updatedAt
 
   user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent                    Location?                  @relation("LocationTree", fields: [parentLocationId], references: [id], onDelete: SetNull)
-  children                  Location[]                 @relation("LocationTree")
   plants                    Plant[]
   plannedPlants             Plant[]                    @relation("PlantPlannedLocation")
   diaries                   Diary[]                    @relation("DiaryLocations")
@@ -493,7 +482,6 @@ model Location {
 
   @@index([userId])
   @@index([userId, status])
-  @@index([parentLocationId])
   @@index([environmentTagId])
   @@index([environmentGroupSlug])
 }

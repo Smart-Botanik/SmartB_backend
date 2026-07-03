@@ -12,20 +12,21 @@ import {
   SeatLayoutMode,
 } from "@prisma/client";
 import type { FlatTaxonomyTag } from "@growing/contracts";
+import { LOCATION_SUB_TYPE_TO_ENVIRONMENT_VARIANT_KEY } from "@growing/contracts";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { ProductsService } from "../reference-data/products.service";
 import { TaxonomyConsumerCatalogService } from "../taxonomy/taxonomy-consumer-catalog.service";
 import { TaxonomyTagService } from "../taxonomy/taxonomy-tag.service";
 import { resolveEnvironmentFieldsFromTag } from "./location-environment.util";
 import {
+  buildLayoutMetaForCapacity,
   buildSeatCreateInputs,
+  generateFixedGridSeatInputs,
   type CreateSeatInput,
 } from "./seat.util";
 
 /** GraphQL / Prisma — вложенные блоки specs + связи для ответа */
 export const locationGraphqlInclude = {
-  parent: true,
-  children: { orderBy: { name: "asc" as const } },
   plants: { orderBy: { createdAt: "desc" as const } },
   diaries: { orderBy: { createdAt: "desc" as const } },
   taxonomyTags: true,
@@ -221,23 +222,45 @@ export class LocationsService {
     }
   }
 
+  private async resolveEnvironmentTagFromLegacySubType(
+    subType: LocationSubType,
+  ): Promise<FlatTaxonomyTag> {
+    const variantKey = LOCATION_SUB_TYPE_TO_ENVIRONMENT_VARIANT_KEY[subType];
+    if (!variantKey) {
+      throw new BadRequestException(`subType: cannot map to environment tag (${subType})`);
+    }
+    const tags = (await this.taxonomyTagService.tagsByKeys([variantKey])) as FlatTaxonomyTag[];
+    const tag = tags[0];
+    if (!tag?.id) {
+      throw new BadRequestException(`subType: taxonomy tag not found (${variantKey})`);
+    }
+    return this.assertEnvironmentVariantTagId(tag.id);
+  }
+
   private async resolveEnvironmentInput(params: {
     environmentTagId?: string | null;
     type?: LocationType | null;
     subType?: LocationSubType | null;
-  }) {
+  }): Promise<{ environmentTagId: string; environmentGroupSlug: string | null }> {
     const tagId = params.environmentTagId?.trim() || null;
     if (tagId) {
       const tag = await this.assertEnvironmentVariantTagId(tagId);
-      return resolveEnvironmentFieldsFromTag(tag);
+      const resolved = resolveEnvironmentFieldsFromTag(tag);
+      return {
+        environmentTagId: resolved.environmentTagId,
+        environmentGroupSlug: resolved.environmentGroupSlug,
+      };
     }
-    assertTypeSubTypeMatch(params.type ?? undefined, params.subType ?? undefined);
-    return {
-      environmentTagId: null as string | null,
-      environmentGroupSlug: null as string | null,
-      type: params.type ?? null,
-      subType: params.subType ?? null,
-    };
+    if (params.subType) {
+      assertTypeSubTypeMatch(params.type ?? undefined, params.subType);
+      const tag = await this.resolveEnvironmentTagFromLegacySubType(params.subType);
+      const resolved = resolveEnvironmentFieldsFromTag(tag);
+      return {
+        environmentTagId: resolved.environmentTagId,
+        environmentGroupSlug: resolved.environmentGroupSlug,
+      };
+    }
+    throw new BadRequestException("environmentTagId or subType is required");
   }
 
   private async assertSeatTaxonomyTagIds(tagIds: string[]) {
@@ -382,32 +405,6 @@ export class LocationsService {
     }
   }
 
-  private async assertParentLocation(params: {
-    userId: string;
-    parentLocationId: string;
-    locationId?: string;
-  }) {
-    if (params.locationId && params.parentLocationId === params.locationId) {
-      throw new BadRequestException("parentLocationId cannot equal location id");
-    }
-    const parent = await this.getByIdBare({
-      userId: params.userId,
-      id: params.parentLocationId,
-    });
-    if (params.locationId) {
-      let cursor: typeof parent | null = parent;
-      while (cursor?.parentLocationId) {
-        if (cursor.parentLocationId === params.locationId) {
-          throw new BadRequestException("parentLocationId would create a cycle");
-        }
-        cursor = await this.prisma.location.findUnique({
-          where: { id: cursor.parentLocationId },
-        });
-      }
-    }
-    return parent;
-  }
-
   private async validateSpecBlocksForCreate(blocks: LocationSpecBlockInput[] | undefined) {
     if (!blocks?.length) return;
     for (const b of blocks) {
@@ -455,18 +452,20 @@ export class LocationsService {
   async create(params: {
     userId: string;
     name: string;
-    parentLocationId?: string | null;
     status?: "active" | "archived" | null;
     environmentTagId?: string | null;
     dimensions?: Prisma.InputJsonValue | null;
     seatLayoutMode?: SeatLayoutMode | null;
     layoutMeta?: Prisma.InputJsonValue | null;
     taxonomyTagIds?: string[] | null;
+    /** Legacy input bridge — resolved to environmentTagId (BK-REW-01-3). */
     type?: LocationType | null;
     subType?: LocationSubType | null;
     wateringType?: "manual" | "drip" | "hydroponics" | "aeroponics" | null;
     description?: string | null;
+    /** Legacy input bridge — seeds fixed_grid when seats omitted. */
     capacity?: number | null;
+    /** Legacy input bridge — maps to occupiedCount on create. */
     occupiedSlots?: number | null;
     diaryIds?: string[] | null;
     specBlocks?: LocationSpecBlockInput[] | null;
@@ -487,28 +486,30 @@ export class LocationsService {
     await this.validateSpecBlocksForCreate(blocks);
     const diaryIds = params.diaryIds ?? [];
     await this.assertDiariesOwnedByUser(params.userId, diaryIds);
-    if (params.parentLocationId) {
-      await this.assertParentLocation({
-        userId: params.userId,
-        parentLocationId: params.parentLocationId,
-      });
-    }
 
-    const seatLayoutMode = params.seatLayoutMode ?? SeatLayoutMode.simple_counter;
-    const seats = params.seats ?? [];
+    let seatLayoutMode = params.seatLayoutMode ?? SeatLayoutMode.simple_counter;
+    let layoutMeta = params.layoutMeta;
+    let seats = params.seats ?? [];
+
+    if (
+      seats.length === 0 &&
+      params.capacity != null &&
+      params.capacity >= 1 &&
+      seatLayoutMode === "fixed_grid"
+    ) {
+      seats = generateFixedGridSeatInputs(params.capacity);
+      if (layoutMeta == null) {
+        layoutMeta = buildLayoutMetaForCapacity(params.capacity) as Prisma.InputJsonValue;
+      }
+    }
 
     const created = await this.prisma.location.create({
       data: {
         userId: params.userId,
         name: params.name,
-        ...(params.parentLocationId !== undefined && {
-          parentLocationId: params.parentLocationId,
-        }),
         ...(params.status != null && { status: params.status }),
         environmentTagId: env.environmentTagId,
         environmentGroupSlug: env.environmentGroupSlug,
-        type: env.type,
-        subType: env.subType,
         ...(params.dimensions !== undefined && {
           dimensions:
             params.dimensions === null
@@ -516,16 +517,13 @@ export class LocationsService {
               : (params.dimensions as Prisma.InputJsonValue),
         }),
         seatLayoutMode,
-        ...(params.layoutMeta !== undefined && {
+        ...(layoutMeta !== undefined && {
           layoutMeta:
-            params.layoutMeta === null
-              ? Prisma.JsonNull
-              : (params.layoutMeta as Prisma.InputJsonValue),
+            layoutMeta === null ? Prisma.JsonNull : (layoutMeta as Prisma.InputJsonValue),
         }),
         ...(params.wateringType !== undefined && { wateringType: params.wateringType }),
         ...(params.description !== undefined && { description: params.description }),
-        ...(params.capacity !== undefined && { capacity: params.capacity }),
-        ...(params.occupiedSlots !== undefined && { occupiedSlots: params.occupiedSlots }),
+        occupiedCount: Math.max(0, params.occupiedSlots ?? 0),
         ...(diaryIds.length > 0 && {
           diaries: { connect: diaryIds.map((id) => ({ id })) },
         }),
@@ -555,7 +553,6 @@ export class LocationsService {
     userId: string;
     id: string;
     name?: string | null;
-    parentLocationId?: string | null;
     status?: "active" | "archived" | null;
     environmentTagId?: string | null;
     dimensions?: Prisma.InputJsonValue | null;
@@ -582,9 +579,11 @@ export class LocationsService {
             environmentTagId:
               params.environmentTagId !== undefined
                 ? params.environmentTagId
-                : existing.environmentTagId,
-            type: params.type !== undefined ? params.type : existing.type,
-            subType: params.subType !== undefined ? params.subType : existing.subType,
+                : params.subType !== undefined || params.type !== undefined
+                  ? null
+                  : existing.environmentTagId,
+            type: params.type,
+            subType: params.subType,
           })
         : null;
 
@@ -594,14 +593,6 @@ export class LocationsService {
 
     if (params.diaryIds != null) {
       await this.assertDiariesOwnedByUser(params.userId, params.diaryIds);
-    }
-
-    if (params.parentLocationId) {
-      await this.assertParentLocation({
-        userId: params.userId,
-        parentLocationId: params.parentLocationId,
-        locationId: params.id,
-      });
     }
 
     if (params.specBlocks != null) {
@@ -616,15 +607,10 @@ export class LocationsService {
 
     const scalarData: Prisma.LocationUpdateInput = {
       ...(params.name !== undefined && { name: params.name ?? undefined }),
-      ...(params.parentLocationId !== undefined && {
-        parentLocationId: params.parentLocationId,
-      }),
       ...(params.status !== undefined && { status: params.status ?? undefined }),
       ...(env != null && {
         environmentTagId: env.environmentTagId,
         environmentGroupSlug: env.environmentGroupSlug,
-        type: env.type,
-        subType: env.subType,
       }),
       ...(params.dimensions !== undefined && {
         dimensions:
@@ -641,8 +627,9 @@ export class LocationsService {
       }),
       ...(params.wateringType !== undefined && { wateringType: params.wateringType }),
       ...(params.description !== undefined && { description: params.description }),
-      ...(params.capacity !== undefined && { capacity: params.capacity }),
-      ...(params.occupiedSlots !== undefined && { occupiedSlots: params.occupiedSlots }),
+      ...(params.occupiedSlots !== undefined && {
+        occupiedCount: Math.max(0, params.occupiedSlots ?? 0),
+      }),
       ...(params.diaryIds != null && {
         diaries: { set: params.diaryIds.map((id) => ({ id })) },
       }),

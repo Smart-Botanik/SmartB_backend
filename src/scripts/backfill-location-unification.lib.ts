@@ -21,8 +21,11 @@ import {
   buildLocationSpecBlockCreates,
   type SpecBlockInput,
 } from "../modules/cultivation-units/spec-blocks.util";
-import type { CreateSeatInput } from "../modules/locations/seat.util";
-import { buildSeatCreateInputs } from "../modules/locations/seat.util";
+import {
+  buildSeatCreateInputs,
+  buildLayoutMetaForCapacity,
+  generateFixedGridSeatInputs,
+} from "../modules/locations/seat.util";
 
 export const REW003_BACKFILL_KEY = "_rew003";
 export const REW003_BACKFILL_VERSION = 1;
@@ -87,10 +90,7 @@ export type CuToLocationMapping = {
   targetLocationId: string;
   environmentTagId: string | null;
   environmentGroupSlug: string | null;
-  type: LocationType | null;
-  subType: LocationSubType | null;
   seatLayoutMode: SeatLayoutMode;
-  capacity: number | null;
   occupiedCount: number;
   layoutMeta: Prisma.InputJsonValue | null;
   seatCreates: Prisma.SeatCreateWithoutLocationInput[];
@@ -223,26 +223,6 @@ export function inferSeatLayoutMode(params: {
   return "simple_counter";
 }
 
-export function generateFixedGridSeatInputs(capacity: number): CreateSeatInput[] {
-  const count = Math.max(1, Math.min(capacity, 64));
-  const cols = Math.min(count, 8);
-  const seats: CreateSeatInput[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const row = Math.floor(i / cols);
-    const col = i % cols;
-    const label = `${String.fromCharCode(65 + row)}${col + 1}`;
-    seats.push({ label, position: { row, col } });
-  }
-  return seats;
-}
-
-export function buildLayoutMetaForCapacity(capacity: number): Prisma.InputJsonValue {
-  const count = Math.max(1, Math.min(capacity, 64));
-  const gridCols = Math.min(count, 8);
-  const gridRows = Math.ceil(count / gridCols);
-  return { gridCols, gridRows } as Prisma.InputJsonValue;
-}
-
 export function mapCuSpecBlocksToInput(
   specBlocks: CultivationUnitWithRelations["specBlocks"],
 ): SpecBlockInput[] {
@@ -318,10 +298,10 @@ export function buildCuToLocationMapping(params: {
 }): CuToLocationMapping {
   const { unit, location, tagIdsByVariantKey } = params;
 
-  const type = location.type ?? unit.type;
-  const subType = location.subType ?? unit.subType;
-  const capacity = location.capacity ?? unit.capacity;
-  const occupiedSlots = location.occupiedSlots ?? unit.occupiedSlots ?? 0;
+  const type = unit.type;
+  const subType = unit.subType;
+  const capacity = unit.capacity;
+  const occupiedSlots = unit.occupiedSlots ?? 0;
 
   const envFromLocation = location.environmentTagId
     ? {
@@ -347,7 +327,7 @@ export function buildCuToLocationMapping(params: {
     const seatInputs = generateFixedGridSeatInputs(capacity);
     seatCreates = buildSeatCreateInputs(seatInputs, "fixed_grid");
     if (layoutMeta == null) {
-      layoutMeta = buildLayoutMetaForCapacity(capacity);
+      layoutMeta = buildLayoutMetaForCapacity(capacity) as Prisma.InputJsonValue;
     }
   }
 
@@ -360,10 +340,7 @@ export function buildCuToLocationMapping(params: {
     targetLocationId: location.id,
     environmentTagId: envFromLocation.environmentTagId,
     environmentGroupSlug: envFromLocation.environmentGroupSlug,
-    type,
-    subType,
     seatLayoutMode,
-    capacity,
     occupiedCount: Math.max(0, occupiedSlots),
     layoutMeta,
     seatCreates,
@@ -446,9 +423,6 @@ export async function ensureOrphanUnitHasTargetLocation(params: {
       data: {
         userId: unit.userId,
         name: unit.name,
-        type,
-        subType,
-        capacity,
         environmentTagId,
         environmentGroupSlug,
         seatLayoutMode,
@@ -492,10 +466,6 @@ export function patchUnitWithSyntheticOrphanLocation(
     id: locationId,
     userId: unit.userId,
     name: unit.name,
-    type: unit.type,
-    subType: unit.subType,
-    capacity: unit.capacity,
-    occupiedSlots: unit.occupiedSlots,
     environmentTagId: null,
     environmentGroupSlug: null,
     seatLayoutMode: inferSeatLayoutMode({

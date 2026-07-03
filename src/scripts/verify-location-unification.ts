@@ -105,9 +105,9 @@ async function main() {
         continue;
       }
 
-      const type = location.type ?? unit.type;
-      const subType = location.subType ?? unit.subType;
-      const capacity = location.capacity ?? unit.capacity;
+      const type = unit.type;
+      const subType = unit.subType;
+      const capacity = unit.capacity;
       const expectedMode = inferSeatLayoutMode({ type, subType, capacity });
 
       if (

@@ -1,10 +1,5 @@
 /**
- * BK-REW-01-3 gate: verify legacy Location/CU fields are ready to DROP.
- *
- * Run after REW-03 backfill + verify pass on target environment.
- *
- * Usage:
- *   npx ts-node src/scripts/verify-location-legacy-cleanup.ts
+ * BK-REW-01-3 gate: verify Location rows ready after legacy column DROP.
  */
 import { PrismaClient } from "@prisma/client";
 import {
@@ -59,8 +54,6 @@ async function main() {
         select: {
           id: true,
           name: true,
-          type: true,
-          subType: true,
           environmentTagId: true,
           current: true,
         },
@@ -84,26 +77,23 @@ async function main() {
         });
       }
 
-      if (
-        location.environmentTagId == null &&
-        (location.type != null || location.subType != null)
-      ) {
+      if (location.environmentTagId == null) {
         issues.push({
           code: "missing_environment_tag",
           entity: `Location:${location.id}`,
-          detail: `${location.name} has legacy type/subType without environmentTagId`,
+          detail: `${location.name} has no environmentTagId`,
         });
       }
     }
 
-    const locationsWithLegacyTree = await prisma.location.count({
-      where: { parentLocationId: { not: null } },
+    const locationsMissingTag = await prisma.location.count({
+      where: { environmentTagId: null },
     });
-    if (locationsWithLegacyTree > 0) {
+    if (locationsMissingTag > 0) {
       issues.push({
-        code: "parent_location_in_use",
+        code: "location_missing_environment_tag",
         entity: "Location",
-        detail: `${locationsWithLegacyTree} row(s) still use parentLocationId`,
+        detail: `${locationsMissingTag} row(s) without environmentTagId`,
       });
     }
 
@@ -121,7 +111,7 @@ async function main() {
       });
     }
 
-    console.log("BK-REW-01-3 legacy cleanup gate");
+    console.log("BK-REW-01-3 post-cutover gate");
     console.log(`Cultivation units scanned: ${units.length}`);
     console.log(`Issues: ${issues.length}`);
 
@@ -132,7 +122,7 @@ async function main() {
       }
       process.exitCode = 1;
     } else {
-      console.log("Ready for Phase C (DROP legacy Location columns).");
+      console.log("Location legacy cutover checks passed.");
     }
   } finally {
     await prisma.$disconnect();

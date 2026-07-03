@@ -24,7 +24,11 @@ npm run db:verify:location-unification
 # 4. Plant placement (если есть legacy cultivationUnitId / locationId)
 npm run db:backfill:plant-placement
 
-# 5. Gate перед BK-REW-01-3 (DROP legacy columns)
+# 5. Pre-cutover gate (перед BK-REW-01-3 на новой среде)
+npm run db:verify:location-legacy-cleanup
+
+# 6. BK-REW-01-3 — DROP legacy columns (migration 20260703153000)
+npx prisma migrate deploy
 npm run db:verify:location-legacy-cleanup
 ```
 
@@ -39,9 +43,9 @@ Backfill **по умолчанию** создаёт Location из полей CU 
 |--------|---|---|---|
 | `db:verify:location-unification` | OK | issues | — |
 | `db:backfill:location-unification` | OK | error | multi-placement |
-| `db:verify:location-legacy-cleanup` | ready Phase C | blockers | — |
+| `db:verify:location-legacy-cleanup` | OK post-cutover | blockers | — |
 
-## Следующий шаг
+## BK-REW-01-3 (dev ✅)
 
-**BK-REW-01-3** — после green gate на **каждой** среде: DROP `Location.type`, `subType`, `capacity`, `occupiedSlots`, `parentLocationId`.  
-См. [ADR-0013 §6.1 Phase C](../../memory/docs/adr/0013-location-unification-v1.md).
+DROP `Location.type`, `subType`, `capacity`, `occupiedSlots`, `parentLocationId`.  
+API: Location отдаёт `environmentTagId` / `environmentGroupSlug`; create/update принимает legacy `subType`/`capacity` как bridge.

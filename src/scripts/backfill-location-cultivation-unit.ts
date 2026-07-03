@@ -80,18 +80,7 @@ async function clearLocationLegacy(
   prisma: PrismaClient,
   locationId: string,
 ): Promise<void> {
-  await prisma.$transaction([
-    prisma.locationSpecBlock.deleteMany({ where: { locationId } }),
-    prisma.location.update({
-      where: { id: locationId },
-      data: {
-        type: null,
-        subType: null,
-        capacity: null,
-        occupiedSlots: null,
-      },
-    }),
-  ]);
+  await prisma.locationSpecBlock.deleteMany({ where: { locationId } });
 }
 
 async function backfillLocation(params: {
@@ -185,10 +174,7 @@ async function backfillLocation(params: {
         primaryLocationId: location.id,
         name: unitName,
         status: mapLocationStatusToUnitStatus(location.status),
-        type: location.type,
-        subType: location.subType,
-        capacity: location.capacity,
-        occupiedSlots: location.occupiedSlots,
+        occupiedSlots: location.occupiedCount > 0 ? location.occupiedCount : null,
         placements: {
           create: {
             locationId: location.id,
@@ -232,13 +218,7 @@ async function backfillLocation(params: {
 }
 
 function locationHasLegacyData(location: LocationWithBackfillRelations): boolean {
-  return (
-    location.type != null ||
-    location.subType != null ||
-    location.capacity != null ||
-    location.occupiedSlots != null ||
-    location.specBlocks.length > 0
-  );
+  return location.specBlocks.length > 0;
 }
 
 async function main() {

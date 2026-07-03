@@ -207,9 +207,6 @@ async function backfillUnit(params: {
             environmentTagId: mapping.environmentTagId,
             environmentGroupSlug: mapping.environmentGroupSlug,
           }),
-        ...(fresh.type == null && mapping.type != null && { type: mapping.type }),
-        ...(fresh.subType == null && mapping.subType != null && { subType: mapping.subType }),
-        ...(fresh.capacity == null && mapping.capacity != null && { capacity: mapping.capacity }),
         seatLayoutMode: fresh.seats.length > 0 ? fresh.seatLayoutMode : mapping.seatLayoutMode,
         ...(mapping.layoutMeta != null &&
           fresh.layoutMeta == null && { layoutMeta: mapping.layoutMeta }),

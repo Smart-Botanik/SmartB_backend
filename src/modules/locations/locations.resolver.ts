@@ -111,7 +111,6 @@ export class LocationsResolver {
     @Args("input")
     input: {
       name: string;
-      parentLocationId?: string | null;
       status?: "active" | "archived" | null;
       environmentTagId?: string | null;
       dimensions?: Prisma.InputJsonValue | null;
@@ -133,7 +132,6 @@ export class LocationsResolver {
     return this.locationsService.create({
       userId,
       name: input.name,
-      parentLocationId: input.parentLocationId,
       status: input.status,
       environmentTagId: input.environmentTagId,
       dimensions: input.dimensions,
@@ -161,7 +159,6 @@ export class LocationsResolver {
     @Args("input")
     input: {
       name?: string | null;
-      parentLocationId?: string | null;
       status?: "active" | "archived" | null;
       environmentTagId?: string | null;
       dimensions?: Prisma.InputJsonValue | null;
@@ -184,7 +181,6 @@ export class LocationsResolver {
       userId,
       id,
       name: input.name,
-      parentLocationId: input.parentLocationId,
       status: input.status,
       environmentTagId: input.environmentTagId,
       dimensions: input.dimensions,

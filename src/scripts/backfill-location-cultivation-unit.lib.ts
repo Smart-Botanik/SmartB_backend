@@ -109,13 +109,7 @@ export function mapLocationStatusToUnitStatus(status: LocationStatus): Cultivati
 }
 
 export function locationHasLegacyGrowingProfile(location: LocationWithBackfillRelations): boolean {
-  return (
-    location.type != null ||
-    location.subType != null ||
-    location.capacity != null ||
-    location.occupiedSlots != null ||
-    location.specBlocks.length > 0
-  );
+  return location.environmentTagId != null || location.specBlocks.length > 0;
 }
 
 export function locationEligibleForBackfill(location: LocationWithBackfillRelations): boolean {
@@ -198,10 +192,7 @@ export function parseBackfillCliArgs(argv: string[]): BackfillCliOptions {
 }
 
 export function legacyFieldsMatch(params: {
-  location: Pick<
-    Location,
-    "type" | "subType" | "capacity" | "occupiedSlots" | "status"
-  >;
+  location: Pick<Location, "status" | "occupiedCount" | "environmentTagId">;
   unit: {
     type: LocationType | null;
     subType: LocationSubType | null;
@@ -212,10 +203,7 @@ export function legacyFieldsMatch(params: {
 }): boolean {
   const { location, unit } = params;
   return (
-    location.type === unit.type &&
-    location.subType === unit.subType &&
-    location.capacity === unit.capacity &&
-    location.occupiedSlots === unit.occupiedSlots &&
-    mapLocationStatusToUnitStatus(location.status) === unit.status
+    mapLocationStatusToUnitStatus(location.status) === unit.status &&
+    Math.max(0, location.occupiedCount) === Math.max(0, unit.occupiedSlots ?? 0)
   );
 }

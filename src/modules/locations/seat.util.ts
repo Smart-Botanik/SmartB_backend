@@ -113,3 +113,24 @@ export function parseLayoutMetaV1(raw: unknown): LayoutMetaV1 | null {
   if (typeof m.cellDepthCm === "number") out.cellDepthCm = m.cellDepthCm;
   return Object.keys(out).length ? out : null;
 }
+
+/** Generate A1… grid seats for fixed_grid bootstrap (backfill + legacy capacity input). */
+export function generateFixedGridSeatInputs(capacity: number): CreateSeatInput[] {
+  const count = Math.max(1, Math.min(capacity, 64));
+  const cols = Math.min(count, 8);
+  const seats: CreateSeatInput[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const label = `${String.fromCharCode(65 + row)}${col + 1}`;
+    seats.push({ label, position: { row, col } });
+  }
+  return seats;
+}
+
+export function buildLayoutMetaForCapacity(capacity: number): LayoutMetaV1 {
+  const count = Math.max(1, Math.min(capacity, 64));
+  const gridCols = Math.min(count, 8);
+  const gridRows = Math.ceil(count / gridCols);
+  return { gridCols, gridRows };
+}

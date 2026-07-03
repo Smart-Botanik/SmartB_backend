@@ -136,13 +136,10 @@ async function upsertDevLocation(
     status: "active",
     environmentTagId,
     environmentGroupSlug: legacy.environmentGroupSlug,
-    type: legacy.type,
-    subType: legacy.subType,
     seatLayoutMode: fixture.seatLayoutMode,
     ...(fixture.dimensions != null && { dimensions: fixture.dimensions }),
     ...(fixture.layoutMeta != null && { layoutMeta: fixture.layoutMeta }),
     ...(fixture.wateringType != null && { wateringType: fixture.wateringType }),
-    ...(fixture.capacity != null && { capacity: fixture.capacity }),
     occupiedCount: fixture.occupiedCount ?? 0,
     ...(fixture.specBlocks?.length && {
       specBlocks: {
@@ -174,13 +171,10 @@ async function upsertDevLocation(
         name: fixture.name,
         environmentTagId,
         environmentGroupSlug: legacy.environmentGroupSlug,
-        type: legacy.type,
-        subType: legacy.subType,
         seatLayoutMode: fixture.seatLayoutMode,
         ...(fixture.dimensions != null && { dimensions: fixture.dimensions }),
         ...(fixture.layoutMeta != null && { layoutMeta: fixture.layoutMeta }),
         ...(fixture.wateringType != null && { wateringType: fixture.wateringType }),
-        ...(fixture.capacity != null && { capacity: fixture.capacity }),
         occupiedCount: fixture.occupiedCount ?? 0,
         ...(fixture.specBlocks?.length && {
           specBlocks: {
