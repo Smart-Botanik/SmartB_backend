@@ -9,6 +9,7 @@
  *   npx ts-node src/scripts/backfill-location-unification.ts --dry-run
  *   npx ts-node src/scripts/backfill-location-unification.ts --cultivation-unit-id=<id>
  *   npx ts-node src/scripts/backfill-location-unification.ts --skip-taxonomy
+ *   npx ts-node src/scripts/backfill-location-unification.ts --skip-orphan-provision
  */
 import { LOCATION_SUB_TYPE_TO_ENVIRONMENT_VARIANT_KEY } from "@growing/contracts";
 import { PrismaClient } from "@prisma/client";
@@ -16,10 +17,12 @@ import {
   buildCuToLocationMapping,
   cultivationUnitUnificationInclude,
   detectMultiPlacementIssues,
+  ensureOrphanUnitHasTargetLocation,
   markerIncludesUnit,
   mergeRew003Marker,
   parseRew003Marker,
   parseUnificationCliArgs,
+  patchUnitWithSyntheticOrphanLocation,
   resolveTargetLocationId,
   type CultivationUnitWithRelations,
   type MultiPlacementIssue,
@@ -30,6 +33,7 @@ type BackfillStats = {
   scanned: number;
   skippedExisting: number;
   skippedNoLocation: number;
+  orphanLocationsCreated: number;
   updated: number;
   seatsCreated: number;
   specBlocksCopied: number;
@@ -71,17 +75,61 @@ async function backfillUnit(params: {
   unit: CultivationUnitWithRelations;
   tagIdsByVariantKey: Map<string, string>;
   dryRun: boolean;
+  skipOrphanProvision: boolean;
   stats: BackfillStats;
   issues: MultiPlacementIssue[];
 }): Promise<void> {
-  const { prisma, unit, tagIdsByVariantKey, dryRun, stats, issues } = params;
+  const { prisma, tagIdsByVariantKey, dryRun, skipOrphanProvision, stats, issues } = params;
+  let unit = params.unit;
 
   const placementIssue = detectMultiPlacementIssues(unit);
-  if (placementIssue) {
+  if (placementIssue && placementIssue.code !== "orphan_no_location") {
     stats.multiPlacementErrors += 1;
     issues.push(placementIssue);
     console.error(
       `[error:${placementIssue.code}] CU ${unit.id} "${unit.name}" — ${placementIssue.detail}`,
+    );
+    return;
+  }
+
+  if (
+    placementIssue?.code === "orphan_no_location" &&
+    !skipOrphanProvision
+  ) {
+    const provision = await ensureOrphanUnitHasTargetLocation({
+      prisma,
+      unit,
+      tagIdsByVariantKey,
+      dryRun,
+    });
+    if (provision?.created) {
+      stats.orphanLocationsCreated += 1;
+      console.log(
+        `[orphan:provision] CU ${unit.id} "${unit.name}" → Location ${provision.locationId}`,
+      );
+      if (!dryRun) {
+        const reloaded = await prisma.cultivationUnit.findUniqueOrThrow({
+          where: { id: unit.id },
+          include: cultivationUnitUnificationInclude,
+        });
+        unit = reloaded as CultivationUnitWithRelations;
+      } else {
+        unit = patchUnitWithSyntheticOrphanLocation(unit, provision.locationId);
+      }
+    }
+  }
+
+  const refreshedPlacementIssue = detectMultiPlacementIssues(unit);
+  if (refreshedPlacementIssue) {
+    if (refreshedPlacementIssue.code === "orphan_no_location") {
+      stats.skippedNoLocation += 1;
+      console.log(`[skip:no-location] CU ${unit.id} "${unit.name}"`);
+      return;
+    }
+    stats.multiPlacementErrors += 1;
+    issues.push(refreshedPlacementIssue);
+    console.error(
+      `[error:${refreshedPlacementIssue.code}] CU ${unit.id} "${unit.name}" — ${refreshedPlacementIssue.detail}`,
     );
     return;
   }
@@ -119,7 +167,7 @@ async function backfillUnit(params: {
 
   const mapping = buildCuToLocationMapping({
     unit,
-    location,
+    location: location as NonNullable<CultivationUnitWithRelations["primaryLocation"]>,
     tagIdsByVariantKey,
   });
 
@@ -193,6 +241,7 @@ async function main() {
     scanned: 0,
     skippedExisting: 0,
     skippedNoLocation: 0,
+    orphanLocationsCreated: 0,
     updated: 0,
     seatsCreated: 0,
     specBlocksCopied: 0,
@@ -225,6 +274,7 @@ async function main() {
         unit: unit as CultivationUnitWithRelations,
         tagIdsByVariantKey,
         dryRun: options.dryRun,
+        skipOrphanProvision: options.skipOrphanProvision,
         stats,
         issues,
       });

@@ -35,6 +35,7 @@
     "db:verify:cultivation-unit-backfill": "ts-node src/scripts/verify-location-cultivation-unit-backfill.ts",
     "db:backfill:location-unification": "ts-node src/scripts/backfill-location-unification.ts",
     "db:verify:location-unification": "ts-node src/scripts/verify-location-unification.ts",
+    "db:verify:location-legacy-cleanup": "ts-node src/scripts/verify-location-legacy-cleanup.ts",
     "db:backfill:plant-placement": "ts-node src/scripts/backfill-plant-placement.ts"
   },
   "prisma": {

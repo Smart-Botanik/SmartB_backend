@@ -14,6 +14,7 @@ import type {
   LocationSubType,
   LocationType,
   Prisma,
+  PrismaClient,
   SeatLayoutMode,
 } from "@prisma/client";
 import {
@@ -370,15 +371,166 @@ export function buildCuToLocationMapping(params: {
   };
 }
 
+export type OrphanLocationProvisionResult = {
+  locationId: string;
+  created: boolean;
+};
+
 export type UnificationCliOptions = {
   dryRun: boolean;
   cultivationUnitId?: string;
   skipTaxonomy: boolean;
+  skipOrphanProvision: boolean;
 };
+
+export function isOrphanCultivationUnit(
+  unit: Pick<CultivationUnit, "primaryLocationId"> & {
+    placements: Pick<CultivationUnitPlacement, "role" | "locationId">[];
+  },
+): boolean {
+  return resolveTargetLocationId(unit) == null;
+}
+
+/**
+ * Orphan CU (no primaryLocationId / primary placement): create Location from CU fields
+ * and wire primaryLocationId + primary placement before unification backfill.
+ */
+export async function ensureOrphanUnitHasTargetLocation(params: {
+  prisma: PrismaClient;
+  unit: CultivationUnitWithRelations;
+  tagIdsByVariantKey: Map<string, string>;
+  dryRun: boolean;
+}): Promise<OrphanLocationProvisionResult | null> {
+  const { prisma, unit, tagIdsByVariantKey, dryRun } = params;
+
+  if (!isOrphanCultivationUnit(unit)) {
+    return null;
+  }
+
+  const placementIssue = detectMultiPlacementIssues(unit);
+  if (placementIssue && placementIssue.code !== "orphan_no_location") {
+    return null;
+  }
+
+  const type = unit.type;
+  const subType = unit.subType;
+  const capacity = unit.capacity;
+  const { environmentTagId, environmentGroupSlug } = resolveEnvironmentTagIdFromLegacy({
+    type,
+    subType,
+    tagIdsByVariantKey,
+  });
+  const seatLayoutMode = inferSeatLayoutMode({ type, subType, capacity });
+  const specBlockCreates =
+    unit.specBlocks.length > 0
+      ? buildLocationSpecBlockCreates(mapCuSpecBlocksToInput(unit.specBlocks))
+      : [];
+
+  let layoutMeta: Prisma.InputJsonValue | null = null;
+  let seatCreates: Prisma.SeatCreateWithoutLocationInput[] = [];
+  if (
+    seatLayoutMode === "fixed_grid" &&
+    capacity != null &&
+    capacity >= 1
+  ) {
+    seatCreates = buildSeatCreateInputs(generateFixedGridSeatInputs(capacity), "fixed_grid");
+    layoutMeta = buildLayoutMetaForCapacity(capacity);
+  }
+
+  if (dryRun) {
+    return { locationId: `dry-run-location-for-${unit.id}`, created: true };
+  }
+
+  const location = await prisma.$transaction(async (tx) => {
+    const created = await tx.location.create({
+      data: {
+        userId: unit.userId,
+        name: unit.name,
+        type,
+        subType,
+        capacity,
+        environmentTagId,
+        environmentGroupSlug,
+        seatLayoutMode,
+        layoutMeta: layoutMeta ?? undefined,
+        occupiedCount: Math.max(0, unit.occupiedSlots ?? 0),
+        ...(specBlockCreates.length > 0 && {
+          specBlocks: { create: specBlockCreates },
+        }),
+        ...(seatCreates.length > 0 && {
+          seats: { create: seatCreates },
+        }),
+      },
+    });
+
+    await tx.cultivationUnit.update({
+      where: { id: unit.id },
+      data: { primaryLocationId: created.id },
+    });
+
+    await tx.cultivationUnitPlacement.create({
+      data: {
+        cultivationUnitId: unit.id,
+        locationId: created.id,
+        role: "primary",
+        sortOrder: 0,
+      },
+    });
+
+    return created;
+  });
+
+  return { locationId: location.id, created: true };
+}
+
+/** In-memory patch so dry-run can continue unification preview after orphan provision. */
+export function patchUnitWithSyntheticOrphanLocation(
+  unit: CultivationUnitWithRelations,
+  locationId: string,
+): CultivationUnitWithRelations {
+  const syntheticLocation = {
+    id: locationId,
+    userId: unit.userId,
+    name: unit.name,
+    type: unit.type,
+    subType: unit.subType,
+    capacity: unit.capacity,
+    occupiedSlots: unit.occupiedSlots,
+    environmentTagId: null,
+    environmentGroupSlug: null,
+    seatLayoutMode: inferSeatLayoutMode({
+      type: unit.type,
+      subType: unit.subType,
+      capacity: unit.capacity,
+    }),
+    layoutMeta: null,
+    current: null,
+    specBlocks: [],
+    seats: [],
+  } as unknown as NonNullable<CultivationUnitWithRelations["primaryLocation"]>;
+
+  return {
+    ...unit,
+    primaryLocationId: locationId,
+    primaryLocation: syntheticLocation,
+    placements: [
+      ...unit.placements,
+      {
+        id: `dry-run-placement-${unit.id}`,
+        cultivationUnitId: unit.id,
+        locationId,
+        role: "primary" as CultivationUnitPlacementRole,
+        sortOrder: 0,
+        createdAt: unit.createdAt,
+      },
+    ],
+  };
+}
 
 export function parseUnificationCliArgs(argv: string[]): UnificationCliOptions {
   let dryRun = false;
   let skipTaxonomy = false;
+  let skipOrphanProvision = false;
   let cultivationUnitId: string | undefined;
 
   for (const arg of argv) {
@@ -390,12 +542,16 @@ export function parseUnificationCliArgs(argv: string[]): UnificationCliOptions {
       skipTaxonomy = true;
       continue;
     }
+    if (arg === "--skip-orphan-provision") {
+      skipOrphanProvision = true;
+      continue;
+    }
     if (arg.startsWith("--cultivation-unit-id=")) {
       cultivationUnitId = arg.slice("--cultivation-unit-id=".length).trim() || undefined;
     }
   }
 
-  return { dryRun, cultivationUnitId, skipTaxonomy };
+  return { dryRun, cultivationUnitId, skipTaxonomy, skipOrphanProvision };
 }
 
 export function locationNeedsUnification(
