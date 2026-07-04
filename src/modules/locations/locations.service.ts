@@ -50,6 +50,8 @@ export const locationGraphqlInclude = {
       enclosure: true,
       space: true,
       area: true,
+      airFilter: true,
+      ventilation: true,
     },
   },
   seats: {
@@ -81,6 +83,12 @@ export type LocationSpecBlockInput = {
     width?: number | null;
     depth?: number | null;
   } | null;
+  airFilter?: {
+    filters?: unknown;
+  } | null;
+  ventilation?: {
+    fans?: unknown;
+  } | null;
 };
 
 function assertTypeSubTypeMatch(
@@ -104,9 +112,18 @@ function assertSpecBlockPayload(kind: LocationSpecKind, b: LocationSpecBlockInpu
     enclosure: "enclosure",
     space: "space",
     area: "area",
+    air_filter: "airFilter",
+    ventilation: "ventilation",
   };
   const expected = keyByKind[kind];
-  for (const k of ["lighting", "enclosure", "space", "area"] as const) {
+  for (const k of [
+    "lighting",
+    "enclosure",
+    "space",
+    "area",
+    "airFilter",
+    "ventilation",
+  ] as const) {
     if (k !== expected && b[k] != null) {
       throw new BadRequestException(
         `specBlocks: kind "${kind}" must not include payload for "${k}"`,
@@ -180,6 +197,24 @@ function buildSpecBlockCreates(
             create: {
               width: b.area?.width ?? undefined,
               depth: b.area?.depth ?? undefined,
+            },
+          },
+        };
+      case "air_filter":
+        return {
+          ...base,
+          airFilter: {
+            create: {
+              filters: b.airFilter?.filters as Prisma.InputJsonValue | undefined,
+            },
+          },
+        };
+      case "ventilation":
+        return {
+          ...base,
+          ventilation: {
+            create: {
+              fans: b.ventilation?.fans as Prisma.InputJsonValue | undefined,
             },
           },
         };

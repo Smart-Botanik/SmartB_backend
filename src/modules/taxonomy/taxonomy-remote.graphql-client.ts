@@ -33,11 +33,19 @@ export class TaxonomyRemoteGraphqlClient {
       headers["X-Taxonomy-Internal-Key"] = internalKey;
     }
 
-    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/graphql`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ query, variables }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl.replace(/\/$/, "")}/graphql`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query, variables }),
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new ServiceUnavailableException(
+        `Taxonomy service unavailable at ${baseUrl} (${reason}). Start services/taxonomy: npm run dev`,
+      );
+    }
 
     if (!response.ok) {
       throw new ServiceUnavailableException(

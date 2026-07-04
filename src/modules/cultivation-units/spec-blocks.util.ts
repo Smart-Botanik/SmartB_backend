@@ -23,6 +23,12 @@ export type SpecBlockInput = {
     width?: number | null;
     depth?: number | null;
   } | null;
+  airFilter?: {
+    filters?: unknown;
+  } | null;
+  ventilation?: {
+    fans?: unknown;
+  } | null;
 };
 
 export function assertTypeSubTypeMatch(
@@ -46,9 +52,18 @@ function assertSpecBlockPayload(kind: LocationSpecKind, b: SpecBlockInput) {
     enclosure: "enclosure",
     space: "space",
     area: "area",
+    air_filter: "airFilter",
+    ventilation: "ventilation",
   };
   const expected = keyByKind[kind];
-  for (const k of ["lighting", "enclosure", "space", "area"] as const) {
+  for (const k of [
+    "lighting",
+    "enclosure",
+    "space",
+    "area",
+    "airFilter",
+    "ventilation",
+  ] as const) {
     if (k !== expected && b[k] != null) {
       throw new BadRequestException(
         `specBlocks: kind "${kind}" must not include payload for "${k}"`,
@@ -140,6 +155,11 @@ function mapSpecBlockCreate(b: SpecBlockInput) {
           },
         },
       };
+    case "air_filter":
+    case "ventilation":
+      throw new BadRequestException(
+        `specBlocks: kind "${b.kind}" is supported for Location only`,
+      );
     default:
       throw new BadRequestException("specBlocks: unknown kind");
   }

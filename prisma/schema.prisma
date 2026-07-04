@@ -435,6 +435,8 @@ enum LocationSpecKind {
   enclosure
   space
   area
+  air_filter
+  ventilation
 }
 
 // --- ADR-0013 Location unification (REW-01) --------------------------------
@@ -654,6 +656,8 @@ model LocationSpecBlock {
   enclosure LocationSpecsEnclosure?
   space     LocationSpecsSpace?
   area      LocationSpecsArea?
+  airFilter LocationSpecsAirFilter?
+  ventilation LocationSpecsVentilation?
 
   @@unique([locationId, position])
   @@index([locationId])
@@ -696,6 +700,22 @@ model LocationSpecsArea {
   specBlockId String @id
   width       Float?
   depth       Float?
+
+  specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+}
+
+/// location-specs.air_filter — фильтры как JSON (массив IEquipmentAirFilter-подобных объектов)
+model LocationSpecsAirFilter {
+  specBlockId String @id
+  filters     Json?
+
+  specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
+}
+
+/// location-specs.ventilation — вентиляторы как JSON (массив IEquipmentVentilationFan-подобных объектов)
+model LocationSpecsVentilation {
+  specBlockId String @id
+  fans        Json?
 
   specBlock LocationSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
 }
