@@ -11,6 +11,7 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { TaxonomyTagService } from "../taxonomy/taxonomy-tag.service";
 import { TelegramBotService } from "./telegram-bot.service";
+import { TelegramGuidePublicationsService } from "./telegram-guide-publications.service";
 
 const TELEGRAM_MAX_LENGTH = 4096;
 
@@ -20,6 +21,7 @@ export class TelegramGuidePublishService {
     private readonly prisma: PrismaService,
     private readonly taxonomyTagService: TaxonomyTagService,
     private readonly telegramBot: TelegramBotService,
+    private readonly telegramPublications: TelegramGuidePublicationsService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -124,11 +126,33 @@ export class TelegramGuidePublishService {
       );
     }
 
-    const { messageId, postUrl } = await this.telegramBot.sendChannelMessage(
-      text,
-      { channelId: channelId?.trim() || undefined },
-    );
+    const { messageId, postUrl, channelId: resolvedChannelId, botId } =
+      await this.telegramBot.sendChannelMessage(text, {
+        channelId: channelId?.trim() || undefined,
+      });
     const publishedAt = new Date();
+
+    let channelName: string | undefined;
+    let botName: string | undefined;
+    if (resolvedChannelId) {
+      const channel = await this.prisma.telegramChannel.findUnique({
+        where: { id: resolvedChannelId },
+        include: { bot: true },
+      });
+      channelName = channel?.name;
+      botName = channel?.bot.name;
+    }
+
+    await this.telegramPublications.recordPublication({
+      cropGuideId,
+      channelId: resolvedChannelId,
+      botId,
+      channelName,
+      botName,
+      telegramMessageId: messageId,
+      telegramPostUrl: postUrl,
+      publishedAt,
+    });
 
     const updated = await this.prisma.cropGuide.update({
       where: { id: cropGuideId },

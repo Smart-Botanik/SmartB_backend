@@ -867,6 +867,7 @@ model CropGuide {
 
   coverMedia     Media?                 @relation("GuideCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
   taxonomyLinks  CropGuideTaxonomyTag[]
+  telegramPublications CropGuideTelegramPublication[]
 
   @@index([cropKind])
   @@index([status])
@@ -923,8 +924,30 @@ model TelegramChannel {
 
   bot TelegramBot @relation(fields: [botId], references: [id], onDelete: Restrict)
 
+  publications CropGuideTelegramPublication[]
+
   @@unique([botId, chatId])
   @@index([botId])
   @@index([isActive])
   @@index([isDefault])
+}
+
+/// Log of Telegram posts for a crop guide (history for admin UI).
+model CropGuideTelegramPublication {
+  id                String   @id @default(cuid())
+  cropGuideId       String
+  channelId         String?
+  botId             String?
+  channelName       String?
+  botName           String?
+  telegramMessageId String
+  telegramPostUrl   String?
+  publishedAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  cropGuide CropGuide        @relation(fields: [cropGuideId], references: [id], onDelete: Cascade)
+  channel   TelegramChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+
+  @@index([cropGuideId, publishedAt])
+  @@index([channelId])
 }

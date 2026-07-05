@@ -11,8 +11,10 @@ import {
 } from "./telegram-bots.resolver";
 import { TelegramBotsService } from "./telegram-bots.service";
 import { TelegramBotService } from "./telegram-bot.service";
+import { TelegramGuidePublicationsService } from "./telegram-guide-publications.service";
 import { TelegramGuidePublishService } from "./telegram-guide-publish.service";
 import { TelegramResolver } from "./telegram.resolver";
+import { CropGuideTelegramPublicationResolver } from "./telegram-publications.resolver";
 
 @Module({
   imports: [TaxonomyModule],
@@ -25,7 +27,9 @@ import { TelegramResolver } from "./telegram.resolver";
     TelegramChannelResolver,
     TelegramBotService,
     TelegramGuidePublishService,
+    TelegramGuidePublicationsService,
     TelegramResolver,
+    CropGuideTelegramPublicationResolver,
   ],
   exports: [
     TelegramHttpService,
@@ -34,6 +38,7 @@ import { TelegramResolver } from "./telegram.resolver";
     TelegramBotsService,
     TelegramBotService,
     TelegramGuidePublishService,
+    TelegramGuidePublicationsService,
   ],
 })
 export class TelegramModule {}
