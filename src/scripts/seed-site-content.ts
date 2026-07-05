@@ -385,6 +385,11 @@ const HOME_SECTIONS: Prisma.InputJsonValue = [
     buttonLabel: "Подписаться на канал",
   },
   {
+    type: "cultureChips",
+    title: "Культуры",
+    subtitle: "Гайды и материалы по основным культурам — от рассады до урожая.",
+  },
+  {
     type: "featuredGuides",
     cropKinds: ["TOMATO", "ZUCCHINI", "EGGPLANT", "CUCUMBER"],
   },

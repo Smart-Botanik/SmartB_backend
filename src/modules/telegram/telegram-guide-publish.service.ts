@@ -83,7 +83,7 @@ export class TelegramGuidePublishService {
     return `\n\n📖 Полная статья: ${url}`;
   }
 
-  async publishCropGuide(cropGuideId: string) {
+  async publishCropGuide(cropGuideId: string, channelId?: string | null) {
     const guide = await this.prisma.cropGuide.findUnique({
       where: { id: cropGuideId },
       include: { coverMedia: true },
@@ -124,8 +124,10 @@ export class TelegramGuidePublishService {
       );
     }
 
-    const { messageId, postUrl } =
-      await this.telegramBot.sendChannelMessage(text);
+    const { messageId, postUrl } = await this.telegramBot.sendChannelMessage(
+      text,
+      { channelId: channelId?.trim() || undefined },
+    );
     const publishedAt = new Date();
 
     const updated = await this.prisma.cropGuide.update({

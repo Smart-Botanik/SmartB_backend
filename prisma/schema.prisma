@@ -888,3 +888,43 @@ model SitePage {
 
   @@index([status])
 }
+
+// =============================================================================
+// Telegram Bot API — admin-managed bots & channels (TG-BOTS-1 / BK-TG-BOT-1)
+// Token encryption at rest: BK-TG-BOT-2 (TelegramBotCredentialsService).
+// =============================================================================
+
+/// Bot token from @BotFather; `tokenEncrypted` populated by credentials service.
+model TelegramBot {
+  id             String   @id @default(cuid())
+  name           String
+  tokenEncrypted String   @db.Text
+  username       String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  channels TelegramChannel[]
+
+  @@index([isActive])
+}
+
+/// Target chat (@channel or -100…) linked to a bot for publishing.
+model TelegramChannel {
+  id        String   @id @default(cuid())
+  name      String
+  chatId    String
+  botId     String
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  publicUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bot TelegramBot @relation(fields: [botId], references: [id], onDelete: Restrict)
+
+  @@unique([botId, chatId])
+  @@index([botId])
+  @@index([isActive])
+  @@index([isDefault])
+}

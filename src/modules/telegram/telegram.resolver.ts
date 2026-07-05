@@ -15,7 +15,10 @@ export class TelegramResolver {
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.ADMIN)
   @Mutation("publishCropGuideToTelegram")
-  publishCropGuideToTelegram(@Args("id") id: string) {
-    return this.telegramGuidePublish.publishCropGuide(id);
+  publishCropGuideToTelegram(
+    @Args("id") id: string,
+    @Args("channelId") channelId?: string,
+  ) {
+    return this.telegramGuidePublish.publishCropGuide(id, channelId);
   }
 }
