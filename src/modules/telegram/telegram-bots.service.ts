@@ -262,4 +262,14 @@ export class TelegramBotsService {
   resolveTokenMasked(tokenEncrypted: string): string {
     return this.credentials.maskStoredToken(tokenEncrypted);
   }
+
+  async validateBotToken(token: string) {
+    const me = await this.credentials.validatePlainToken(token);
+    return {
+      telegramBotId: String(me.id),
+      username: me.username ?? null,
+      firstName: me.firstName,
+      isBot: me.isBot,
+    };
+  }
 }

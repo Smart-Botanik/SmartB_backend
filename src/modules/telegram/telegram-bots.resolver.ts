@@ -61,6 +61,13 @@ export class TelegramBotResolver {
 
   @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
   @Roles(Role.ADMIN)
+  @Mutation("validateTelegramBotToken")
+  validateTelegramBotToken(@Args("token") token: string) {
+    return this.telegramBotsService.validateBotToken(token);
+  }
+
+  @UseGuards(GqlJwtAuthGuard, GqlRolesGuard)
+  @Roles(Role.ADMIN)
   @Mutation("createTelegramBot")
   createTelegramBot(@Args("input") input: CreateTelegramBotInput) {
     return this.telegramBotsService.createBot(input);
