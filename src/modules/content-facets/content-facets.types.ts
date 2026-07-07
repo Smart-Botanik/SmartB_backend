@@ -64,6 +64,7 @@ export type ContentFacetBundleDto = {
   subjectKey: string | null;
   profileKind: ContentFacetProfileKind;
   revision: string;
+  chipIcon?: string | null;
   logo: MediaRecord | null;
   imageM: MediaRecord | null;
   previews: MediaRecord[];

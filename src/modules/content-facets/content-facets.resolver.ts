@@ -16,6 +16,7 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { ContentFacetsService } from "./content-facets.service";
+import { CultureOptionsService } from "./culture-options.service";
 import type {
   ContentFacetSubjectInput,
   UpsertContentFacetProfileParams,
@@ -37,7 +38,15 @@ export class ContentFacetSlotResolver {
 
 @Resolver()
 export class ContentFacetsResolver {
-  constructor(private readonly contentFacetsService: ContentFacetsService) {}
+  constructor(
+    private readonly contentFacetsService: ContentFacetsService,
+    private readonly cultureOptionsService: CultureOptionsService,
+  ) {}
+
+  @Query("publishedCultureOptions")
+  publishedCultureOptions() {
+    return this.cultureOptionsService.getPublishedCultureOptions();
+  }
 
   @Query("publishedContentFacets")
   publishedContentFacets(

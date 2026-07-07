@@ -28,6 +28,8 @@
     "test:taxonomy:e2e": "ts-node src/scripts/test-taxonomy-e2e.ts",
     "test:reference-data:e2e": "ts-node src/scripts/test-reference-data-e2e.ts",
     "test:content-facets:e2e": "ts-node src/scripts/test-content-facets-e2e.ts",
+    "test:culture-options:e2e": "ts-node src/scripts/test-culture-options-e2e.ts",
+    "db:seed:culture-facets": "ts-node src/scripts/run-seed-culture-facets.ts",
     "db:export-reference-data": "ts-node src/scripts/export-reference-data-db.ts",
     "db:verify-reference-data-export": "ts-node src/scripts/verify-reference-data-db-export.ts",
     "db:export-taxonomy": "ts-node src/scripts/export-taxonomy-db.ts",

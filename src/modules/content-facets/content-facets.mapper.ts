@@ -1,5 +1,6 @@
 import {
   buildContentFacetWords,
+  pickChipIconText,
   pickFacetMediaIds,
   type ContentFacetSlotRecord,
 } from "@growing/contracts";
@@ -31,6 +32,7 @@ export function toContentFacetBundle(
     subjectKey: profile.subjectKey,
     profileKind: profile.profileKind,
     revision: profile.revision,
+    chipIcon: pickChipIconText(slotRecords),
     logo: resolve(picked.logoMediaId),
     imageM: resolve(picked.imageMMediaId),
     previews: picked.previewMediaIds
