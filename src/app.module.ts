@@ -8,6 +8,7 @@ import { AuthModule } from "./modules/auth/auth.module";
 import { ReferenceDataModule } from "./modules/reference-data/reference-data.module";
 import { TaxonomyModule } from "./modules/taxonomy/taxonomy.module";
 import { ContentModule } from "./modules/content/content.module";
+import { ContentFacetsModule } from "./modules/content-facets/content-facets.module";
 import { DiaryModule } from "./modules/diary/diary.module";
 import { EventsModule } from "./modules/events/events.module";
 import { MediaModule } from "./modules/media/media.module";
@@ -55,6 +56,7 @@ import { HealthModule } from "./health/health.module";
     ReferenceDataModule,
     TaxonomyModule,
     ContentModule,
+    ContentFacetsModule,
     TelegramModule,
     PrimitivesModule,
     RegistryModule,

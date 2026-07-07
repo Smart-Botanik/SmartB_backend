@@ -890,6 +890,65 @@ model SitePage {
   @@index([status])
 }
 
+// --- Content Facets (ADR-0015 / BK-CF-0) -----------------------------------
+// Presentation slots per subject (taxonomy tag, brand, product). Media via opaque mediaId.
+
+enum ContentFacetSubjectType {
+  TAXONOMY_TAG
+  BRAND
+  PRODUCT
+}
+
+enum ContentFacetProfileKind {
+  culture_tag
+  topic_tag
+  brand
+  product
+}
+
+enum ContentFacetKind {
+  LOGO
+  IMAGE_M
+  PREVIEW
+  RANDOM_IMAGE
+  TEXT
+}
+
+model ContentFacetProfile {
+  id          String                  @id @default(cuid())
+  subjectType ContentFacetSubjectType
+  subjectId   String
+  subjectKey  String?
+  profileKind ContentFacetProfileKind
+  status      ContentStatus           @default(DRAFT)
+  revision    String                  @default("0")
+  publishedAt DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  slots       ContentFacetSlot[]
+
+  @@unique([subjectType, subjectId])
+  @@index([subjectType, subjectKey])
+  @@index([status])
+}
+
+model ContentFacetSlot {
+  id        String           @id @default(cuid())
+  profileId String
+  kind      ContentFacetKind
+  role      String?
+  mediaId   String?
+  textValue String?          @db.Text
+  sortOrder Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  profile ContentFacetProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([profileId, kind])
+}
+
 // =============================================================================
 // Telegram Bot API — admin-managed bots & channels (TG-BOTS-1 / BK-TG-BOT-1)
 // Token encryption at rest: BK-TG-BOT-2 (TelegramBotCredentialsService).
