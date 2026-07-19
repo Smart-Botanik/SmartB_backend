@@ -4,7 +4,6 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { TelegramBot, TelegramChannel } from "@prisma/client";
 
 import { TelegramBotCredentialsService } from "./telegram-bot-credentials.service";
 import { TelegramBotsService } from "./telegram-bots.service";
@@ -35,7 +34,9 @@ export type SendChannelMessageOptions = {
   botId?: string;
 };
 
-type ChannelWithBot = TelegramChannel & { bot: TelegramBot };
+type ChannelWithBot = Awaited<
+  ReturnType<TelegramBotsService["getChannelById"]>
+>;
 
 @Injectable()
 export class TelegramBotService {
@@ -106,8 +107,16 @@ export class TelegramBotService {
       );
     }
 
+    const encrypted = channel.bot.tokenEncrypted?.trim();
+    if (!encrypted) {
+      // Remote content-service never returns ciphertext; publish via content-service.
+      throw new ServiceUnavailableException(
+        "Локальная отправка через BFF недоступна после cutover — используйте publishCropGuideToTelegram (content-service)",
+      );
+    }
+
     return {
-      token: this.credentials.decryptToken(channel.bot.tokenEncrypted),
+      token: this.credentials.decryptToken(encrypted),
       chatId: channel.chatId,
       channelId: channel.id,
       botId: channel.botId,

@@ -1,0 +1,5 @@
+# Keep prepared slots in git; local originals stay optional.
+_source.png
+_source.jpg
+_source.jpeg
+_source.webp

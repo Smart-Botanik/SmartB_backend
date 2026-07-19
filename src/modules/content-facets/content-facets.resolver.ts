@@ -17,6 +17,7 @@ import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { ContentFacetsService } from "./content-facets.service";
 import { CultureOptionsService } from "./culture-options.service";
+import { TagSurfaceService } from "./tag-surface.service";
 import type {
   ContentFacetSubjectInput,
   UpsertContentFacetProfileParams,
@@ -41,11 +42,17 @@ export class ContentFacetsResolver {
   constructor(
     private readonly contentFacetsService: ContentFacetsService,
     private readonly cultureOptionsService: CultureOptionsService,
+    private readonly tagSurfaceService: TagSurfaceService,
   ) {}
 
   @Query("publishedCultureOptions")
   publishedCultureOptions() {
     return this.cultureOptionsService.getPublishedCultureOptions();
+  }
+
+  @Query("publishedTagSurface")
+  publishedTagSurface(@Args("tagKey") tagKey: string) {
+    return this.tagSurfaceService.getPublishedTagSurface(tagKey);
   }
 
   @Query("publishedContentFacets")

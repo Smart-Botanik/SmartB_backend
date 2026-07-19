@@ -3,21 +3,20 @@ import {
   cropHubSlugFromTagKey,
   resolveCultureChipIcon,
   TAXONOMY_CROPS_LIST_PATH,
-  type FlatTaxonomyTag,
 } from "@growing/contracts";
 import { createHash } from "node:crypto";
 import { TaxonomyTagService } from "../taxonomy/taxonomy-tag.service";
 import { ContentFacetsService } from "./content-facets.service";
-import type {
-  ContentFacetBundleDto,
-  ContentFacetSubjectInput,
-} from "./content-facets.types";
-import type {
-  CultureOptionDto,
-  CultureOptionsCatalogDto,
-} from "./culture-options.types";
+import type { ContentFacetSubjectInput } from "./content-facets.types";
 
-type TaxonomyCropTag = FlatTaxonomyTag & { id: string; key: string; label: string };
+type TaxonomyTagRow = {
+  id: string;
+  key: string;
+  label: string;
+  sortOrder: number;
+  parentId?: string | null;
+  namespace: string;
+};
 
 @Injectable()
 export class CultureOptionsService {
@@ -26,86 +25,68 @@ export class CultureOptionsService {
     private readonly contentFacetsService: ContentFacetsService,
   ) {}
 
-  private computeCatalogRevision(
-    crops: TaxonomyCropTag[],
-    bundles: ContentFacetBundleDto[],
-  ): string {
-    const payload = JSON.stringify({
-      crops: crops.map(c => ({
-        id: c.id,
-        key: c.key,
-        label: c.label,
-        sortOrder: c.sortOrder,
-        updatedAt: c.updatedAt ?? null,
-      })),
-      facets: bundles.map(b => ({
-        subjectId: b.subjectId,
-        revision: b.revision,
-      })),
-    });
-    return createHash("sha256").update(payload).digest("hex").slice(0, 16);
+  private computeRevision(parts: string[]): string {
+    return createHash("sha256")
+      .update(parts.filter(Boolean).join("|"))
+      .digest("hex")
+      .slice(0, 16);
   }
 
-  private buildCultureOption(
-    crop: TaxonomyCropTag,
-    bundle: ContentFacetBundleDto | undefined,
-  ): CultureOptionDto {
-    const iconResolved = resolveCultureChipIcon({
-      tagKey: crop.key,
-      chipIconText: bundle?.chipIcon ?? null,
-      logoMediaId: bundle?.logo?.id ?? null,
-    });
+  async getPublishedCultureOptions() {
+    const forest = (await this.taxonomyTagService.forest(
+      TAXONOMY_CROPS_LIST_PATH.scopeKey,
+      "ACTIVE",
+    )) as TaxonomyTagRow[];
 
-    const preview =
-      bundle?.imageM ?? bundle?.previews[0] ?? bundle?.randomImages[0] ?? null;
+    const roots = forest
+      .filter(
+        tag =>
+          !tag.parentId &&
+          tag.namespace === TAXONOMY_CROPS_LIST_PATH.namespace,
+      )
+      .sort((a, b) => a.sortOrder - b.sortOrder);
 
-    return {
-      tagKey: crop.key,
-      tagId: crop.id,
-      label: crop.label,
-      hubSlug: cropHubSlugFromTagKey(crop.key),
-      sortOrder: crop.sortOrder ?? 0,
-      icon: {
-        ...iconResolved,
-        image:
-          iconResolved.kind === "MEDIA" && bundle?.logo ? bundle.logo : null,
-      },
-      preview,
-    };
-  }
-
-  async getPublishedCultureOptions(): Promise<CultureOptionsCatalogDto> {
-    const page = await this.taxonomyTagService.list({
-      scopeKey: TAXONOMY_CROPS_LIST_PATH.scopeKey,
-      namespace: TAXONOMY_CROPS_LIST_PATH.namespace,
-      parentId: null,
-      status: "ACTIVE",
-      limit: 500,
-      offset: 0,
-    });
-
-    const crops = (page.items as TaxonomyCropTag[]).sort(
-      (a, b) =>
-        (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
-        a.label.localeCompare(b.label, "ru"),
-    );
-
-    const subjects: ContentFacetSubjectInput[] = crops.map(crop => ({
+    const subjects: ContentFacetSubjectInput[] = roots.map(tag => ({
       type: "TAXONOMY_TAG",
-      id: crop.id,
-      key: crop.key,
+      id: tag.id,
+      key: tag.key,
     }));
 
-    const bundles = await this.contentFacetsService.getPublishedBundlesBatch(subjects);
-    const bundleBySubjectId = new Map(bundles.map(b => [b.subjectId, b]));
-
-    const options = crops.map(crop =>
-      this.buildCultureOption(crop, bundleBySubjectId.get(crop.id)),
+    const bundles = await this.contentFacetsService.getPublishedBundlesBatch(
+      subjects,
+    );
+    const bundleBySubjectId = new Map(
+      bundles.map(bundle => [bundle.subjectId, bundle]),
     );
 
-    return {
-      revision: this.computeCatalogRevision(crops, bundles),
-      options,
-    };
+    const options = roots.map(tag => {
+      const bundle = bundleBySubjectId.get(tag.id);
+      const iconView = resolveCultureChipIcon({
+        tagKey: tag.key,
+        chipIconText: bundle?.chipIcon,
+        logoMediaId: bundle?.logo?.id ?? null,
+      });
+
+      return {
+        tagKey: tag.key,
+        tagId: tag.id,
+        label: tag.label,
+        hubSlug: cropHubSlugFromTagKey(tag.key),
+        sortOrder: tag.sortOrder,
+        icon: {
+          kind: iconView.kind,
+          emoji: iconView.emoji ?? null,
+          image: iconView.kind === "MEDIA" ? bundle?.logo ?? null : null,
+        },
+        preview: bundle?.imageM ?? bundle?.previews[0] ?? null,
+      };
+    });
+
+    const revision = this.computeRevision([
+      ...bundles.map(bundle => bundle.revision),
+      ...roots.map(tag => tag.id),
+    ]);
+
+    return { revision, options };
   }
 }

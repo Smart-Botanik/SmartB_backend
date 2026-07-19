@@ -1,15 +1,17 @@
 import { ConfigService } from "@nestjs/config";
 import { PrismaClient } from "@prisma/client";
-import { ContentFacetsService } from "../modules/content-facets/content-facets.service";
+import { ContentEdgesRemoteGraphqlClient } from "../modules/content-facets/content-edges-remote.graphql-client";
+import { ContentFacetsRemoteService } from "../modules/content-facets/content-facets.remote-service";
 import { TaxonomyRemoteGraphqlClient } from "../modules/taxonomy/taxonomy-remote.graphql-client";
 import { TaxonomyTagRemoteService } from "../modules/taxonomy/taxonomy-tag.remote-service";
 import { seedCultureFacets } from "./seed-culture-facets";
 
 async function main() {
-  const url = process.env.TAXONOMY_SERVICE_URL?.trim();
-  if (!url) {
+  const taxonomyUrl = process.env.TAXONOMY_SERVICE_URL?.trim();
+  const edgesUrl = process.env.CONTENT_EDGES_SERVICE_URL?.trim();
+  if (!taxonomyUrl || !edgesUrl) {
     console.error(
-      "Culture facets seed requires TAXONOMY_SERVICE_URL (taxonomy-service running)",
+      "Culture facets seed requires TAXONOMY_SERVICE_URL and CONTENT_EDGES_SERVICE_URL",
     );
     process.exitCode = 1;
     return;
@@ -20,9 +22,9 @@ async function main() {
   const taxonomyTagService = new TaxonomyTagRemoteService(
     new TaxonomyRemoteGraphqlClient(config),
   );
-  const contentFacetsService = new ContentFacetsService(
+  const contentFacetsService = new ContentFacetsRemoteService(
+    new ContentEdgesRemoteGraphqlClient(config),
     prisma as never,
-    taxonomyTagService,
   );
 
   try {

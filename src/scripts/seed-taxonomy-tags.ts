@@ -6,4 +6,13 @@ export const GUIDE_TAXONOMY_TAG_KEYS_BY_SLUG: Record<string, string[]> = {
     "crop.tomato.determinate",
     "topic.growing",
   ],
+  "tomato-outdoor-bed-start": [
+    "crop.tomato",
+    "environment.type.outdoor.bed",
+    "topic.growing",
+  ],
+  "growbox-light-ventilation": [
+    "environment.type.indoor.growbox",
+    "topic.growing",
+  ],
 };

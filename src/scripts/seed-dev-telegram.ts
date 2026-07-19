@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { ContentMigrationPrisma } from "./content-prisma-for-migration";
 import { fetch as undiciFetch, ProxyAgent } from "undici";
 
 import {
@@ -52,7 +52,7 @@ async function fetchGetMe(token: string): Promise<{
   };
 }
 
-export async function seedDevTelegramFromEnv(prisma: PrismaClient) {
+export async function seedDevTelegramFromEnv(prisma: ContentMigrationPrisma) {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
   const chatId = process.env.TELEGRAM_CHANNEL_ID?.trim();
 

@@ -29,11 +29,18 @@
     "test:reference-data:e2e": "ts-node src/scripts/test-reference-data-e2e.ts",
     "test:content-facets:e2e": "ts-node src/scripts/test-content-facets-e2e.ts",
     "test:culture-options:e2e": "ts-node src/scripts/test-culture-options-e2e.ts",
+    "test:tag-surface:e2e": "ts-node src/scripts/test-tag-surface-e2e.ts",
     "db:seed:culture-facets": "ts-node src/scripts/run-seed-culture-facets.ts",
+    "db:seed:site": "ts-node src/scripts/run-seed-site-content.ts",
     "db:export-reference-data": "ts-node src/scripts/export-reference-data-db.ts",
     "db:verify-reference-data-export": "ts-node src/scripts/verify-reference-data-db-export.ts",
     "db:export-taxonomy": "ts-node src/scripts/export-taxonomy-db.ts",
     "db:verify-taxonomy-export": "ts-node src/scripts/verify-taxonomy-db-export.ts",
+    "db:export-content": "ts-node src/scripts/export-content-db.ts",
+    "db:verify-content-export": "ts-node src/scripts/verify-content-db-export.ts",
+    "db:export-content-edges": "ts-node src/scripts/export-content-edges-db.ts",
+    "db:verify-content-edges-export": "ts-node src/scripts/verify-content-edges-db-export.ts",
+    "test:content:e2e": "ts-node src/scripts/test-content-service-e2e.ts",
     "db:backfill:cultivation-unit": "ts-node src/scripts/backfill-location-cultivation-unit.ts",
     "db:verify:cultivation-unit-backfill": "ts-node src/scripts/verify-location-cultivation-unit-backfill.ts",
     "db:backfill:location-unification": "ts-node src/scripts/backfill-location-unification.ts",
@@ -100,6 +107,6 @@
     "prettier": "^3.3.3",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4"
+    "typescript": "^7.0.2"
   }
 }

@@ -1,8 +1,14 @@
-import { PrismaClient } from "@prisma/client";
+/**
+ * One-time markdown migration for CropGuide.body → bodySiteMd (content_db).
+ */
 import { blocksToMarkdown } from "@growing/content-markdown";
+import {
+  createContentPrisma,
+  requireContentDatabaseUrl,
+} from "./content-prisma-for-migration";
 
 async function main() {
-  const prisma = new PrismaClient();
+  const prisma = createContentPrisma(requireContentDatabaseUrl());
 
   try {
     const guides = await prisma.cropGuide.findMany();

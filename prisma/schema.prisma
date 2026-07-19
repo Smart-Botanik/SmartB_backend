@@ -377,21 +377,8 @@ model Media {
   height    Int?
   createdAt DateTime @default(now())
 
-  guideCovers      CropGuide[] @relation("GuideCover")
-
   @@index([provider])
   @@index([bucket])
-}
-
-/// M2M CropGuide ↔ taxonomy tag id (tag rows live in taxonomy-service). BK-MS-TAX-3
-model CropGuideTaxonomyTag {
-  cropGuideId   String
-  taxonomyTagId String
-
-  cropGuide CropGuide @relation(fields: [cropGuideId], references: [id], onDelete: Cascade)
-
-  @@id([cropGuideId, taxonomyTagId])
-  @@index([taxonomyTagId])
 }
 
 // --- Location (ex Strapi api::location) ------------------------------------
@@ -828,66 +815,14 @@ model CultivationUnitSpecsArea {
   specBlock CultivationUnitSpecBlock @relation(fields: [specBlockId], references: [id], onDelete: Cascade)
 }
 
-// --- Public site content (SITE-1) ------------------------------------------
-
-enum CropKind {
-  TOMATO
-  ZUCCHINI
-  EGGPLANT
-  CUCUMBER
-}
+// --- Public site content enums (SITE-1) — tables live in content-service -----
+// ContentStatus still used by ContentFacetProfile.
+// CropKind lives in GraphQL schema + BFF TS types (no Prisma model left).
 
 enum ContentStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
-}
-
-/// SEO guide page for a crop (admin CRUD, public read when PUBLISHED).
-model CropGuide {
-  id             String        @id @default(cuid())
-  cropKind       CropKind
-  slug           String        @unique
-  title          String
-  excerpt        String?
-  body           Json          @default("[]")
-  bodySiteMd     String        @default("") @db.Text
-  bodyTelegramMd String        @default("") @db.Text
-  coverMediaId   String?
-  status         ContentStatus @default(DRAFT)
-  publishedAt    DateTime?
-  seoTitle       String?
-  seoDescription String?
-  sortOrder      Int           @default(0)
-  telegramPublishedAt DateTime?
-  telegramMessageId   String?
-  telegramPostUrl     String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  coverMedia     Media?                 @relation("GuideCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
-  taxonomyLinks  CropGuideTaxonomyTag[]
-  telegramPublications CropGuideTelegramPublication[]
-
-  @@index([cropKind])
-  @@index([status])
-  @@index([sortOrder])
-}
-
-/// Editable site page (e.g. home landing sections).
-model SitePage {
-  id             String        @id @default(cuid())
-  key            String        @unique
-  title          String
-  sections       Json          @default("[]")
-  status         ContentStatus @default(DRAFT)
-  publishedAt    DateTime?
-  seoTitle       String?
-  seoDescription String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  @@index([status])
 }
 
 // --- Content Facets (ADR-0015 / BK-CF-0) -----------------------------------
@@ -949,64 +884,4 @@ model ContentFacetSlot {
   @@index([profileId, kind])
 }
 
-// =============================================================================
-// Telegram Bot API — admin-managed bots & channels (TG-BOTS-1 / BK-TG-BOT-1)
-// Token encryption at rest: BK-TG-BOT-2 (TelegramBotCredentialsService).
-// =============================================================================
-
-/// Bot token from @BotFather; `tokenEncrypted` populated by credentials service.
-model TelegramBot {
-  id             String   @id @default(cuid())
-  name           String
-  tokenEncrypted String   @db.Text
-  username       String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  channels TelegramChannel[]
-
-  @@index([isActive])
-}
-
-/// Target chat (@channel or -100…) linked to a bot for publishing.
-model TelegramChannel {
-  id        String   @id @default(cuid())
-  name      String
-  chatId    String
-  botId     String
-  isDefault Boolean  @default(false)
-  isActive  Boolean  @default(true)
-  publicUrl String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  bot TelegramBot @relation(fields: [botId], references: [id], onDelete: Restrict)
-
-  publications CropGuideTelegramPublication[]
-
-  @@unique([botId, chatId])
-  @@index([botId])
-  @@index([isActive])
-  @@index([isDefault])
-}
-
-/// Log of Telegram posts for a crop guide (history for admin UI).
-model CropGuideTelegramPublication {
-  id                String   @id @default(cuid())
-  cropGuideId       String
-  channelId         String?
-  botId             String?
-  channelName       String?
-  botName           String?
-  telegramMessageId String
-  telegramPostUrl   String?
-  publishedAt       DateTime @default(now())
-  createdAt         DateTime @default(now())
-
-  cropGuide CropGuide        @relation(fields: [cropGuideId], references: [id], onDelete: Cascade)
-  channel   TelegramChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
-
-  @@index([cropGuideId, publishedAt])
-  @@index([channelId])
-}
+// CropGuide / SitePage / Telegram* tables moved to content-service (BK-MS-CONTENT).

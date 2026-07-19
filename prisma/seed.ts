@@ -115,8 +115,8 @@ async function main() {
   const registryFieldSpecsResult = await seedRegistryFieldSpecs(prisma);
   console.log("Seeded registry field specs:", registryFieldSpecsResult);
 
-  const siteContentResult = await seedSiteContent(prisma);
-  console.log("Seeded site content:", siteContentResult);
+  const siteContentResult = await seedSiteContent();
+  console.log("Seeded site content (content_db):", siteContentResult);
 
   const devLocationsResult = await seedDevLocations(prisma);
   console.log("Seeded dev locations (REW-01-6):", devLocationsResult);

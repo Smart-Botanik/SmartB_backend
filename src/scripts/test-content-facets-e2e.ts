@@ -1,5 +1,7 @@
-import { ContentStatus, PrismaClient } from "@prisma/client";
-import { ContentFacetsService } from "../modules/content-facets/content-facets.service";
+import { ConfigService } from "@nestjs/config";
+import { PrismaClient } from "@prisma/client";
+import { ContentEdgesRemoteGraphqlClient } from "../modules/content-facets/content-edges-remote.graphql-client";
+import { ContentFacetsRemoteService } from "../modules/content-facets/content-facets.remote-service";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -8,12 +10,20 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 async function main() {
+  const edgesUrl = process.env.CONTENT_EDGES_SERVICE_URL?.trim();
+  if (!edgesUrl) {
+    console.error(
+      "Content facets e2e requires CONTENT_EDGES_SERVICE_URL (content-edges)",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const prisma = new PrismaClient();
-  const service = new ContentFacetsService(
+  const config = new ConfigService(process.env);
+  const service = new ContentFacetsRemoteService(
+    new ContentEdgesRemoteGraphqlClient(config),
     prisma as never,
-    {
-      getById: async () => null,
-    } as never,
   );
 
   const subject = {
@@ -22,10 +32,6 @@ async function main() {
   };
 
   try {
-    await prisma.contentFacetProfile.deleteMany({
-      where: { subjectType: subject.type, subjectId: subject.id },
-    });
-
     const media = await prisma.media.create({
       data: {
         provider: "local",
@@ -56,7 +62,7 @@ async function main() {
       ],
     });
 
-    assert(profile.status === ContentStatus.DRAFT, "Expected DRAFT after upsert");
+    assert(profile.status === "DRAFT", "Expected DRAFT after upsert");
     assert(profile.slots.length === 2, "Expected 2 slots");
 
     let draftMissing = false;
@@ -76,14 +82,18 @@ async function main() {
     const batch = await service.getPublishedBundlesBatch([subject]);
     assert(batch.length === 1, "Batch should return published profile");
 
-    console.log("Content facets smoke OK");
+    await service.unpublishProfile(subject);
+    await service.upsertProfile({
+      subject,
+      profileKind: "product",
+      slots: [],
+    });
+
+    console.log("Content facets smoke OK (content-edges remote)");
   } catch (error) {
     console.error("Content facets smoke FAILED", error);
     process.exitCode = 1;
   } finally {
-    await prisma.contentFacetProfile.deleteMany({
-      where: { subjectType: subject.type, subjectId: subject.id },
-    });
     await prisma.$disconnect();
   }
 }

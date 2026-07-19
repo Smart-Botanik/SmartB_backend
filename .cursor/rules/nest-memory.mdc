@@ -1,0 +1,20 @@
+---
+description: Nest BFF project memory — start here, cards not kanban
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Nest memory
+
+Before work in `backend_nest/`:
+
+1. Read `backend_nest/.memory/hub.md` (or `.memory/hub.md` when cwd is nest)
+2. Read `.memory/tasks/active.md`
+3. Open the relevant card under `.memory/tasks/cards/`
+
+Todos live in **active + cards** only. Do not update Obsidian `memory/tasks/kanban.md` for nest-local tasks unless the change is cross-cutting.
+
+Do not load the full monorepo `memory/` tree. Use **growing-brain** / **growing-project** MCP, or single ADR files when needed.
+
+After a meaningful step: update the card, `active.md` if WIP changed, and append `.memory/history.md`.

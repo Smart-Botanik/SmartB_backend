@@ -21,7 +21,8 @@ import {
 
 type TelegramBotParent = {
   id: string;
-  tokenEncrypted: string;
+  tokenEncrypted?: string;
+  tokenMasked?: string;
   channels?: unknown[];
 };
 
@@ -37,7 +38,11 @@ export class TelegramBotResolver {
 
   @ResolveField("tokenMasked")
   tokenMasked(@Parent() bot: TelegramBotParent) {
-    return this.telegramBotsService.resolveTokenMasked(bot.tokenEncrypted);
+    if (bot.tokenMasked) return bot.tokenMasked;
+    if (bot.tokenEncrypted) {
+      return this.telegramBotsService.resolveTokenMasked(bot.tokenEncrypted);
+    }
+    return "••••";
   }
 
   @ResolveField("channels")

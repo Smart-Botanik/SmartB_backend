@@ -1,843 +1,88 @@
-import {
+import { Injectable } from "@nestjs/common";
+import type { CropKind } from "@growing/contracts";
+import { ContentStatus } from "@prisma/client";
 
-  BadRequestException,
-
-  Injectable,
-
-  NotFoundException,
-
-} from "@nestjs/common";
-
-import {
-
-  ContentStatus,
-
-  CropKind,
-
-  Prisma,
-
-} from "@prisma/client";
-
-import {
-
-  extractMediaRefs,
-
-  resolveMediaRefs,
-
-} from "@growing/content-markdown";
-
-import { PrismaService } from "../../infrastructure/prisma/prisma.service";
-import { TaxonomyTagService } from "../taxonomy/taxonomy-tag.service";
-
-const guideInclude = {
-  coverMedia: true,
-} as const;
-
+/** DI token; runtime: {@link ContentRemoteService} (BK-MS-CONTENT cutover). */
 @Injectable()
+export abstract class ContentService {
+  abstract resolveCropGuideTaxonomyTags(guideId: string): Promise<unknown[]>;
 
-export class ContentService {
+  abstract resolveMediaInMarkdown(markdown: string): Promise<string>;
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly taxonomyTagService: TaxonomyTagService,
-  ) {}
-
-  private async resolveTaxonomyTagIdsForTermKey(termKey: string): Promise<string[]> {
-    const page = await this.taxonomyTagService.list({
-      query: termKey,
-      limit: 50,
-      offset: 0,
-    });
-    const tag = (page.items as Array<{ id: string; key: string }>).find(
-      item => item.key === termKey,
-    );
-    return tag ? [tag.id] : [];
-  }
-
-  private async termKeyGuideWhere(
-    termKey: string,
-  ): Promise<Prisma.CropGuideWhereInput> {
-    const tagIds = await this.resolveTaxonomyTagIdsForTermKey(termKey);
-    if (tagIds.length === 0) {
-      return { taxonomyLinks: { none: {} } };
-    }
-    return {
-      taxonomyLinks: { some: { taxonomyTagId: { in: tagIds } } },
-    };
-  }
-
-  private async replaceGuideTaxonomyLinks(
-    guideId: string,
-    tagIds: string[],
-  ): Promise<void> {
-    await this.prisma.cropGuideTaxonomyTag.deleteMany({
-      where: { cropGuideId: guideId },
-    });
-    if (tagIds.length > 0) {
-      await this.prisma.cropGuideTaxonomyTag.createMany({
-        data: tagIds.map(taxonomyTagId => ({ cropGuideId: guideId, taxonomyTagId })),
-      });
-    }
-  }
-
-  async resolveCropGuideTaxonomyTags(guideId: string) {
-    const links = await this.prisma.cropGuideTaxonomyTag.findMany({
-      where: { cropGuideId: guideId },
-    });
-    const tags = await Promise.all(
-      links.map(link => this.taxonomyTagService.getById(link.taxonomyTagId)),
-    );
-    return tags
-      .filter(Boolean)
-      .sort(
-        (a, b) =>
-          ((a as { sortOrder: number }).sortOrder ?? 0) -
-          ((b as { sortOrder: number }).sortOrder ?? 0),
-      );
-  }
-
-  private parseJsonString(raw: string, fieldName: string): Prisma.InputJsonValue {
-
-    try {
-
-      return JSON.parse(raw) as Prisma.InputJsonValue;
-
-    } catch {
-
-      throw new BadRequestException(`${fieldName}: invalid JSON`);
-
-    }
-
-  }
-
-
-
-  private async assertCoverMediaId(mediaId: string) {
-
-    const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
-
-    if (!media) {
-
-      throw new BadRequestException("coverMediaId: media not found");
-
-    }
-
-  }
-
-
-
-  private async validateMediaRefsInMarkdown(
-
-    ...fields: Array<string | null | undefined>
-
-  ) {
-
-    const ids = [
-
-      ...new Set(fields.flatMap(field => extractMediaRefs(field ?? ""))),
-
-    ];
-
-    if (ids.length === 0) return;
-
-
-
-    const found = await this.prisma.media.findMany({
-
-      where: { id: { in: ids } },
-
-      select: { id: true },
-
-    });
-
-    const foundIds = new Set(found.map(item => item.id));
-
-    const missing = ids.filter(id => !foundIds.has(id));
-
-    if (missing.length > 0) {
-
-      throw new BadRequestException(
-
-        `Markdown media refs not found: ${missing.join(", ")}`,
-
-      );
-
-    }
-
-  }
-
-
-
-  async resolveMediaInMarkdown(markdown: string): Promise<string> {
-
-    const ids = extractMediaRefs(markdown);
-
-    if (ids.length === 0) return markdown;
-
-
-
-    const media = await this.prisma.media.findMany({
-
-      where: { id: { in: ids } },
-
-      select: { id: true, url: true },
-
-    });
-
-    const urlById = Object.fromEntries(media.map(item => [item.id, item.url]));
-
-    return resolveMediaRefs(markdown, urlById);
-
-  }
-
-
-
-  private handleUniqueViolation(error: unknown, message: string): never {
-
-    if (
-
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-
-      error.code === "P2002"
-
-    ) {
-
-      throw new BadRequestException(message);
-
-    }
-
-    throw error;
-
-  }
-
-
-
-  async listCropGuides(params: {
-
+  abstract listCropGuides(params: {
     limit?: number;
-
     offset?: number;
-
     cropKind?: CropKind | null;
-
     status?: ContentStatus | null;
-
     query?: string | null;
-
     termKey?: string | null;
+  }): Promise<{ items: unknown[]; total: number }>;
 
-  }) {
+  abstract getCropGuideById(id: string): Promise<unknown>;
 
-    const termFilter = params.termKey
-      ? await this.termKeyGuideWhere(params.termKey)
-      : {};
+  abstract getCropGuideBySlug(slug: string): Promise<unknown>;
 
-    const where: Prisma.CropGuideWhereInput = {
-
-      ...(params.cropKind ? { cropKind: params.cropKind } : {}),
-
-      ...(params.status ? { status: params.status } : {}),
-
-      ...termFilter,
-
-      ...(params.query
-
-        ? {
-
-            OR: [
-
-              { title: { contains: params.query, mode: "insensitive" } },
-
-              { slug: { contains: params.query, mode: "insensitive" } },
-
-            ],
-
-          }
-
-        : {}),
-
-    };
-
-
-
-    const [total, items] = await this.prisma.$transaction([
-
-      this.prisma.cropGuide.count({ where }),
-
-      this.prisma.cropGuide.findMany({
-
-        where,
-
-        orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
-
-        take: params.limit ?? undefined,
-
-        skip: params.offset ?? undefined,
-
-        include: guideInclude,
-
-      }),
-
-    ]);
-
-
-
-    return { items, total };
-
-  }
-
-
-
-  async getCropGuideById(id: string) {
-
-    const guide = await this.prisma.cropGuide.findUnique({
-
-      where: { id },
-
-      include: guideInclude,
-
-    });
-
-    if (!guide) {
-
-      throw new NotFoundException("CropGuide not found");
-
-    }
-
-    return guide;
-
-  }
-
-
-
-  async getCropGuideBySlug(slug: string) {
-
-    const guide = await this.prisma.cropGuide.findUnique({
-
-      where: { slug },
-
-      include: guideInclude,
-
-    });
-
-    if (!guide) {
-
-      throw new NotFoundException("CropGuide not found");
-
-    }
-
-    return guide;
-
-  }
-
-
-
-  async listPublishedCropGuides(
+  abstract listPublishedCropGuides(
     cropKind?: CropKind | null,
     termKey?: string | null,
-  ) {
-    const termFilter = termKey ? await this.termKeyGuideWhere(termKey) : {};
+  ): Promise<unknown[]>;
 
-    return this.prisma.cropGuide.findMany({
+  abstract getPublishedCropGuideBySlug(slug: string): Promise<unknown>;
 
-      where: {
-
-        status: ContentStatus.PUBLISHED,
-
-        ...(cropKind ? { cropKind } : {}),
-
-        ...termFilter,
-
-      },
-
-      orderBy: [{ sortOrder: "asc" }, { publishedAt: "desc" }],
-
-      include: guideInclude,
-
-    });
-
-  }
-
-
-
-  async getPublishedCropGuideBySlug(slug: string) {
-
-    const guide = await this.prisma.cropGuide.findFirst({
-
-      where: { slug, status: ContentStatus.PUBLISHED },
-
-      include: guideInclude,
-
-    });
-
-    if (!guide) {
-
-      throw new NotFoundException("Published crop guide not found");
-
-    }
-
-    return guide;
-
-  }
-
-
-
-  async createCropGuide(params: {
-
+  abstract createCropGuide(params: {
     cropKind: CropKind;
-
     slug: string;
-
     title: string;
-
     excerpt?: string | null;
-
     bodyJson?: string | null;
-
     bodySiteMd?: string | null;
-
     bodyTelegramMd?: string | null;
-
     coverMediaId?: string | null;
-
     seoTitle?: string | null;
-
     seoDescription?: string | null;
-
     sortOrder?: number | null;
-
     taxonomyTagIds?: string[] | null;
+  }): Promise<unknown>;
 
-  }) {
-
-    if (params.coverMediaId) {
-
-      await this.assertCoverMediaId(params.coverMediaId);
-
-    }
-
-
-
-    await this.validateMediaRefsInMarkdown(
-
-      params.bodySiteMd,
-
-      params.bodyTelegramMd,
-
-    );
-
-
-
-    const bodySiteMd = params.bodySiteMd ?? "";
-
-    const bodyTelegramMd = params.bodyTelegramMd ?? "";
-
-    const taxonomyConnect = await this.taxonomyTagService.connectByIds(
-      params.taxonomyTagIds,
-      {
-        cropKind: params.cropKind,
-        requireCropRoot: Boolean(params.taxonomyTagIds?.length),
-      },
-    );
-
-    if (!params.bodyJson && !bodySiteMd.trim()) {
-
-      throw new BadRequestException("bodySiteMd or bodyJson is required");
-
-    }
-
-    try {
-
-      const guide = await this.prisma.cropGuide.create({
-
-        data: {
-
-          cropKind: params.cropKind,
-
-          slug: params.slug.trim(),
-
-          title: params.title,
-
-          excerpt: params.excerpt ?? undefined,
-
-          body: params.bodyJson
-
-            ? this.parseJsonString(params.bodyJson, "bodyJson")
-
-            : [],
-
-          bodySiteMd,
-
-          bodyTelegramMd,
-
-          ...(params.coverMediaId
-
-            ? { coverMedia: { connect: { id: params.coverMediaId } } }
-
-            : {}),
-
-          seoTitle: params.seoTitle ?? undefined,
-
-          seoDescription: params.seoDescription ?? undefined,
-
-          sortOrder: params.sortOrder ?? undefined,
-
-        },
-
-        include: guideInclude,
-
-      });
-
-      if (taxonomyConnect) {
-        await this.replaceGuideTaxonomyLinks(
-          guide.id,
-          taxonomyConnect.set.map(tag => tag.id),
-        );
-      }
-
-      return guide;
-
-    } catch (error) {
-
-      this.handleUniqueViolation(error, "CropGuide slug already exists");
-
-    }
-
-  }
-
-
-
-  async updateCropGuide(params: {
-
+  abstract updateCropGuide(params: {
     id: string;
-
     cropKind?: CropKind | null;
-
     slug?: string | null;
-
     title?: string | null;
-
     excerpt?: string | null;
-
     bodyJson?: string | null;
-
     bodySiteMd?: string | null;
-
     bodyTelegramMd?: string | null;
-
     coverMediaId?: string | null;
-
     status?: ContentStatus | null;
-
     seoTitle?: string | null;
-
     seoDescription?: string | null;
-
     sortOrder?: number | null;
-
     taxonomyTagIds?: string[] | null;
+  }): Promise<unknown>;
 
-  }) {
+  abstract deleteCropGuide(id: string): Promise<boolean>;
 
-    const existing = await this.getCropGuideById(params.id);
+  abstract publishCropGuide(id: string): Promise<unknown>;
 
+  abstract unpublishCropGuide(id: string): Promise<unknown>;
 
+  abstract listSitePages(status?: ContentStatus | null): Promise<unknown[]>;
 
-    if (params.coverMediaId) {
+  abstract getSitePageByKey(key: string): Promise<unknown>;
 
-      await this.assertCoverMediaId(params.coverMediaId);
+  abstract getPublishedSitePageByKey(key: string): Promise<unknown>;
 
-    }
-
-
-
-    await this.validateMediaRefsInMarkdown(
-
-      params.bodySiteMd,
-
-      params.bodyTelegramMd,
-
-    );
-
-    const taxonomyConnect = await this.taxonomyTagService.connectByIds(
-      params.taxonomyTagIds,
-      {
-        cropKind: params.cropKind ?? existing.cropKind,
-        requireCropRoot: Boolean(params.taxonomyTagIds?.length),
-      },
-    );
-
-    try {
-
-      const guide = await this.prisma.cropGuide.update({
-
-        where: { id: params.id },
-
-        data: {
-
-          cropKind: params.cropKind ?? undefined,
-
-          slug: params.slug?.trim() ?? undefined,
-
-          title: params.title ?? undefined,
-
-          excerpt: params.excerpt ?? undefined,
-
-          ...(params.bodyJson != null
-
-            ? { body: this.parseJsonString(params.bodyJson, "bodyJson") }
-
-            : {}),
-
-          ...(params.bodySiteMd != null ? { bodySiteMd: params.bodySiteMd } : {}),
-
-          ...(params.bodyTelegramMd != null
-
-            ? { bodyTelegramMd: params.bodyTelegramMd }
-
-            : {}),
-
-          coverMediaId:
-
-            params.coverMediaId === null
-
-              ? null
-
-              : (params.coverMediaId ?? undefined),
-
-          status: params.status ?? undefined,
-
-          seoTitle: params.seoTitle ?? undefined,
-
-          seoDescription: params.seoDescription ?? undefined,
-
-          sortOrder: params.sortOrder ?? undefined,
-
-        },
-
-        include: guideInclude,
-
-      });
-
-      if (taxonomyConnect !== undefined) {
-        await this.replaceGuideTaxonomyLinks(
-          guide.id,
-          taxonomyConnect.set.map(tag => tag.id),
-        );
-      }
-
-      return guide;
-
-    } catch (error) {
-
-      this.handleUniqueViolation(error, "CropGuide slug already exists");
-
-    }
-
-  }
-
-
-
-  async deleteCropGuide(id: string) {
-
-    await this.getCropGuideById(id);
-
-    await this.prisma.cropGuide.delete({ where: { id } });
-
-    return true;
-
-  }
-
-
-
-  async publishCropGuide(id: string) {
-
-    await this.getCropGuideById(id);
-
-    return this.prisma.cropGuide.update({
-
-      where: { id },
-
-      data: {
-
-        status: ContentStatus.PUBLISHED,
-
-        publishedAt: new Date(),
-
-      },
-
-      include: guideInclude,
-
-    });
-
-  }
-
-
-
-  async unpublishCropGuide(id: string) {
-
-    await this.getCropGuideById(id);
-
-    return this.prisma.cropGuide.update({
-
-      where: { id },
-
-      data: { status: ContentStatus.DRAFT },
-
-      include: guideInclude,
-
-    });
-
-  }
-
-
-
-  async listSitePages(status?: ContentStatus | null) {
-
-    return this.prisma.sitePage.findMany({
-
-      where: status ? { status } : undefined,
-
-      orderBy: { key: "asc" },
-
-    });
-
-  }
-
-
-
-  async getSitePageByKey(key: string) {
-
-    const page = await this.prisma.sitePage.findUnique({ where: { key } });
-
-    if (!page) {
-
-      throw new NotFoundException("SitePage not found");
-
-    }
-
-    return page;
-
-  }
-
-
-
-  async getPublishedSitePageByKey(key: string) {
-
-    const page = await this.prisma.sitePage.findFirst({
-
-      where: { key, status: ContentStatus.PUBLISHED },
-
-    });
-
-    if (!page) {
-
-      throw new NotFoundException("Published site page not found");
-
-    }
-
-    return page;
-
-  }
-
-
-
-  async upsertSitePage(params: {
-
+  abstract upsertSitePage(params: {
     key: string;
-
     title: string;
-
     sectionsJson: string;
-
     seoTitle?: string | null;
-
     seoDescription?: string | null;
-
     status?: ContentStatus | null;
+  }): Promise<unknown>;
 
-  }) {
+  abstract publishSitePage(key: string): Promise<unknown>;
 
-    const sections = this.parseJsonString(params.sectionsJson, "sectionsJson");
-
-
-
-    return this.prisma.sitePage.upsert({
-
-      where: { key: params.key.trim() },
-
-      create: {
-
-        key: params.key.trim(),
-
-        title: params.title,
-
-        sections,
-
-        seoTitle: params.seoTitle ?? undefined,
-
-        seoDescription: params.seoDescription ?? undefined,
-
-        status: params.status ?? ContentStatus.DRAFT,
-
-      },
-
-      update: {
-
-        title: params.title,
-
-        sections,
-
-        seoTitle: params.seoTitle ?? undefined,
-
-        seoDescription: params.seoDescription ?? undefined,
-
-        ...(params.status != null ? { status: params.status } : {}),
-
-      },
-
-    });
-
-  }
-
-
-
-  async publishSitePage(key: string) {
-
-    await this.getSitePageByKey(key);
-
-    return this.prisma.sitePage.update({
-
-      where: { key },
-
-      data: {
-
-        status: ContentStatus.PUBLISHED,
-
-        publishedAt: new Date(),
-
-      },
-
-    });
-
-  }
-
-
-
-  async unpublishSitePage(key: string) {
-
-    await this.getSitePageByKey(key);
-
-    return this.prisma.sitePage.update({
-
-      where: { key },
-
-      data: { status: ContentStatus.DRAFT },
-
-    });
-
-  }
-
+  abstract unpublishSitePage(key: string): Promise<unknown>;
 }
-
-

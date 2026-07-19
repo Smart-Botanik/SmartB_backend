@@ -1,5 +1,10 @@
-import { ContentStatus, CropKind, Prisma, PrismaClient } from "@prisma/client";
+import { ContentStatus, Prisma } from "@prisma/client";
+import type { CropKind } from "@growing/contracts";
 import { GUIDE_TAXONOMY_TAG_KEYS_BY_SLUG } from "./seed-taxonomy-tags";
+import {
+  createContentPrisma,
+  type ContentMigrationPrisma,
+} from "./content-prisma-for-migration";
 import { createTaxonomyPrisma } from "./taxonomy-prisma-for-migration";
 
 async function resolveTaxonomyTagIdsByKeys(
@@ -36,11 +41,13 @@ type TSeedGuide = {
   excerpt: string;
   sortOrder: number;
   body: Prisma.InputJsonValue;
+  bodySiteMd?: string;
+  bodyTelegramMd?: string;
 };
 
 const GUIDES: TSeedGuide[] = [
   {
-    cropKind: CropKind.TOMATO,
+    cropKind: "TOMATO",
     slug: "vyrashchivanie-tomatov",
     title: "Выращивание Томатов",
     excerpt:
@@ -105,7 +112,7 @@ const GUIDES: TSeedGuide[] = [
     ],
   },
   {
-    cropKind: CropKind.TOMATO,
+    cropKind: "TOMATO",
     slug: "vyrashchivanie-determinantnyh-tomatov",
     title: "Выращивание Детерминантных томатов",
     excerpt:
@@ -166,7 +173,7 @@ const GUIDES: TSeedGuide[] = [
     ],
   },
   {
-    cropKind: CropKind.TOMATO,
+    cropKind: "TOMATO",
     slug: "interesnye-fakty-determinantnye-tomaty",
     title: "Интересные факты о детерминантных помидорах",
     excerpt:
@@ -313,7 +320,7 @@ const GUIDES: TSeedGuide[] = [
     ],
   },
   {
-    cropKind: CropKind.ZUCCHINI,
+    cropKind: "ZUCCHINI",
     slug: "kabachki",
     title: "Кабачки",
     excerpt: "Компактные кусты, щедрый урожай и простой уход в тепле.",
@@ -331,7 +338,7 @@ const GUIDES: TSeedGuide[] = [
     ],
   },
   {
-    cropKind: CropKind.EGGPLANT,
+    cropKind: "EGGPLANT",
     slug: "baklazhany",
     title: "Баклажаны",
     excerpt: "Тепло, подвязка и стабильная влажность субстрата.",
@@ -345,7 +352,7 @@ const GUIDES: TSeedGuide[] = [
     ],
   },
   {
-    cropKind: CropKind.CUCUMBER,
+    cropKind: "CUCUMBER",
     slug: "ogurcy",
     title: "Огурцы",
     excerpt: "Высокая влажность воздуха, частый полив и своевременная подвязка.",
@@ -368,19 +375,146 @@ const GUIDES: TSeedGuide[] = [
   },
 ];
 
+/** CONTENT-LCH-3 / CONTENT-BRD-4 — launch guides with site + Telegram MD (пакет A). */
+const LAUNCH_GUIDES: TSeedGuide[] = [
+  {
+    cropKind: "TOMATO",
+    slug: "tomato-outdoor-bed-start",
+    title: "Выращивание помидоров на грядке: старт сезона",
+    excerpt:
+      "Когда высаживать рассаду в открытый грунт, как подготовить грядку и не залить куст в первую неделю.",
+    sortOrder: 10,
+    body: [],
+    bodySiteMd: `# Выращивание помидоров на грядке: старт сезона
+
+Открытый грунт даёт вкус и аромат, которых сложно добиться в теплице — но только если вовремя высадить рассаду и не промахнуться с поливом в первые недели.
+
+## Когда высаживать
+
+Ориентир — стабильные ночи **выше +10…12 °C** и прогретая почва на глубине 10 см. В средней полосе это обычно вторая половина мая — начало июня; в более тёплых регионах — раньше на 1–2 недели.
+
+За 7–10 дней до высадки закаляйте рассаду: короткие прогулки на улице, затем дольше, без резкого солнца в полдень.
+
+## Подготовка грядки
+
+- Солнечное место, без застоя воды.
+- Рыхлый субстрат, pH около **6,0–6,5**.
+- Перед посадкой внесите компост или перегной; свежий навоз — нет.
+- Схема: **40–50 см** между компактными кустами, **50–70 см** для высокорослых.
+
+## Посадка
+
+1. Лунка чуть глубже горшка — можно заглубить стебель на 2–3 см (дополнительные корни).
+2. Полейте тёплой водой, замульчируйте.
+3. Первые **5–7 дней** — притенение от жёсткого солнца, если стоит жара.
+
+## Полив и уход в старте
+
+Пока куст приживается, полив **умеренный**: верхний слой подсыхает, но ком не пересыхает насквозь. Резкие заливы после засухи провоцируют трещины плодов позже в сезоне.
+
+Подвяжите индетерминантные сорта сразу — не ждите, пока стебель ляжет.
+
+## Частые ошибки
+
+| Ошибка | Что делать |
+|--------|------------|
+| Высадка «в холод» | Подождать или укрыть спанбондом на ночь |
+| Густая посадка | Проредить / формировать, усилить проветривание |
+| Ежедневный обильный полив | Перейти на редкий, но глубокий |
+
+## Дальше
+
+После укоренения — регулярный полив, первая подкормка через 10–14 дней и формирование куста под ваш тип сорта. Полный цикл от рассады до сбора — в связанных гайдах SmartБотаник.
+`,
+    bodyTelegramMd: `🌱 Помидоры на грядке: старт сезона
+
+Когда высаживать, как подготовить грядку и не залить куст в первую неделю — короткий чеклист для открытого грунта.
+
+• Ночи стабильно выше +10…12 °C
+• Схема посадки 40–70 см в зависимости от типа куста
+• Умеренный полив и мульча после высадки
+
+📖 Полная статья: https://smart-botanik.ru/guides/tomato-outdoor-bed-start
+`,
+  },
+  {
+    cropKind: "TOMATO",
+    slug: "growbox-light-ventilation",
+    title: "Гроубокс: свет и вентиляция без перегрева",
+    excerpt:
+      "Как подобрать свет и два контура воздуха в закрытом объёме, чтобы не сжечь листья и не поймать плесень.",
+    sortOrder: 11,
+    body: [],
+    bodySiteMd: `# Гроубокс: свет и вентиляция без перегрева
+
+В закрытом объёме свет и воздух связаны: мощная лампа без вытяжки быстро поднимает температуру листьев, а слабый обдув даёт плесень и вытянутую рассаду.
+
+## Свет: сколько нужно
+
+Для большинства овощных культур в вегетации ориентир **PPFD 200–400 мкмоль/м²·с** на уровне кроны (точные цифры зависят от культуры и фазы).
+
+Практические правила:
+
+- Держите лампу на рекомендованной производителем высоте; при «ожоге» листьев — поднимите или снизьте мощность.
+- Фотопериод для рассады овощей часто **14–16 ч**; ночная пауза обязательна.
+- Белый / full-spectrum LED проще в быту, чем узкий «красный-синий», если вы не гонитесь за максимальной эффективностью ватт.
+
+## Вентиляция: два контура
+
+1. **Вытяжка** — удаляет нагретый воздух и снижает влажность.
+2. **Циркуляция** внутри бокса — лёгкий ветер по листьям, без прямого «фена» на точку роста.
+
+Без вытяжки температура под лампой может быть на **5–10 °C** выше, чем показывает датчик у стенки.
+
+## Как не перегреть
+
+| Симптом | Вероятная причина | Действие |
+|---------|-------------------|----------|
+| Листья «лодочкой», края сухие | Слишком близко / жарко | Поднять лампу, усилить вытяжку |
+| Вытянутые стебли | Мало света или слишком тепло ночью | Ближе лампа / длиннее день, прохладнее ночь |
+| Конденсат на стенках | Слабая вытяжка, высокая RH | Увеличить воздухообмен |
+
+Целевой диапазон для многих культур: **22–26 °C** днём, ночь на **3–5 °C** ниже; относительная влажность **50–70 %** (ниже на цветении/плодах — меньше грибков).
+
+## Минимальный чеклист перед запуском
+
+- [ ] Вытяжной вентилятор с запасом по объёму бокса
+- [ ] Отверстие притока (не только вытяжка)
+- [ ] Датчик температуры **у кроны**, не только у пола
+- [ ] Таймер света и проверка ночной паузы
+
+## Связь с приложением
+
+В SmartБотаник локация типа «гроубокс» и события полива/климата помогут вести историю среды — приложение в разработке; пока фиксируйте показания датчиков рядом с этим гайдом.
+`,
+    bodyTelegramMd: `🌱 Гроубокс: свет и вентиляция без перегрева
+
+Лампа без вытяжки греет листья сильнее, чем кажется. Коротко — как подобрать PPFD, два контура воздуха и не поймать ожог.
+
+• PPFD ориентир 200–400 мкмоль/м²·с у кроны
+• Вытяжка + лёгкая циркуляция внутри
+• Датчик температуры держите у листьев, не у пола
+
+📖 Полная статья: https://smart-botanik.ru/guides/growbox-light-ventilation
+`,
+  },
+];
+
+const ALL_SEED_GUIDES: TSeedGuide[] = [...GUIDES, ...LAUNCH_GUIDES];
+
 const HOME_SECTIONS: Prisma.InputJsonValue = [
   {
     type: "hero",
-    title: "Выращивание с умом",
+    title: "SmartБотаник",
     subtitle:
-      "Публичные руководства по культурам и приложение для ведения дневника сада.",
-    ctaLabel: "Смотреть руководства",
+      "Гайды по выращиванию и пост-урожаю. Приложение для дневника сада — скоро; пока читайте статьи и подписывайтесь на Telegram.",
+    ctaLabel: "Смотреть гайды",
     ctaHref: "/guides",
   },
   {
     type: "telegramBlock",
     title: "Telegram-канал SmartБотаник",
-    text: "Короткие советы, анонсы новых статей и ссылки на полные руководства на сайте.",
+    text: "Короткие советы, анонсы новых гайдов и ссылки на полные статьи на сайте. Закреплённый пост — о чём канал и куда идти за материалами.",
     channelUrl: "https://t.me/smart_botanik",
     buttonLabel: "Подписаться на канал",
   },
@@ -388,6 +522,7 @@ const HOME_SECTIONS: Prisma.InputJsonValue = [
     type: "cultureChips",
     title: "Культуры",
     subtitle: "Гайды и материалы по основным культурам — от рассады до урожая.",
+    cultureTagKeys: ["crop.tomato", "crop.cucumber", "crop.pepper", "crop.potato"],
   },
   {
     type: "featuredGuides",
@@ -395,17 +530,41 @@ const HOME_SECTIONS: Prisma.InputJsonValue = [
   },
   {
     type: "ctaBlock",
-    title: "Ведите дневник в приложении",
-    text: "Фиксируйте полив, фазы и локации — всё в одном месте.",
-    ctaLabel: "Открыть приложение",
-    ctaHref: "/app",
+    title: "Приложение в разработке",
+    text: "Дневник локаций, растений и метрик появится позже. Сейчас — гайды на сайте и анонсы в Telegram.",
+    ctaLabel: "Читать гайды",
+    ctaHref: "/guides",
   },
 ];
 
-export async function seedSiteContent(prisma: PrismaClient) {
+export async function seedSiteContent(
+  prisma?: ContentMigrationPrisma,
+) {
+  const contentUrl = process.env.CONTENT_DATABASE_URL?.trim();
+  const owned =
+    prisma ??
+    (contentUrl
+      ? createContentPrisma(contentUrl)
+      : (() => {
+          throw new Error(
+            "CONTENT_DATABASE_URL is required to seed site content into content_db",
+          );
+        })());
+  const shouldDisconnect = !prisma;
+
+  try {
+    return await seedSiteContentInto(owned);
+  } finally {
+    if (shouldDisconnect) {
+      await owned.$disconnect();
+    }
+  }
+}
+
+async function seedSiteContentInto(prisma: ContentMigrationPrisma) {
   const now = new Date();
 
-  for (const guide of GUIDES) {
+  for (const guide of ALL_SEED_GUIDES) {
     const labelKeys = GUIDE_TAXONOMY_TAG_KEYS_BY_SLUG[guide.slug] ?? [];
     const labelRecords = await resolveTaxonomyTagIdsByKeys(labelKeys);
 
@@ -416,6 +575,8 @@ export async function seedSiteContent(prisma: PrismaClient) {
         title: guide.title,
         excerpt: guide.excerpt,
         body: guide.body,
+        bodySiteMd: guide.bodySiteMd ?? "",
+        bodyTelegramMd: guide.bodyTelegramMd ?? "",
         sortOrder: guide.sortOrder,
         status: ContentStatus.PUBLISHED,
         publishedAt: now,
@@ -428,6 +589,8 @@ export async function seedSiteContent(prisma: PrismaClient) {
         title: guide.title,
         excerpt: guide.excerpt,
         body: guide.body,
+        bodySiteMd: guide.bodySiteMd ?? "",
+        bodyTelegramMd: guide.bodyTelegramMd ?? "",
         sortOrder: guide.sortOrder,
         status: ContentStatus.PUBLISHED,
         publishedAt: now,
@@ -456,9 +619,9 @@ export async function seedSiteContent(prisma: PrismaClient) {
       sections: HOME_SECTIONS,
       status: ContentStatus.PUBLISHED,
       publishedAt: now,
-      seoTitle: "SmartБотаник — советы по выращиванию",
+      seoTitle: "SmartБотаник — гайды по выращиванию",
       seoDescription:
-        "Руководства по помидорам, огурцам, кабачкам и баклажанам.",
+        "Публичные гайды SmartБотаник: культуры, среда, советы. Приложение — скоро; Telegram — анонсы статей.",
     },
     create: {
       key: "home",
@@ -466,14 +629,15 @@ export async function seedSiteContent(prisma: PrismaClient) {
       sections: HOME_SECTIONS,
       status: ContentStatus.PUBLISHED,
       publishedAt: now,
-      seoTitle: "SmartБотаник — советы по выращиванию",
+      seoTitle: "SmartБотаник — гайды по выращиванию",
       seoDescription:
-        "Руководства по помидорам, огурцам, кабачкам и баклажанам.",
+        "Публичные гайды SmartБотаник: культуры, среда, советы. Приложение — скоро; Telegram — анонсы статей.",
     },
   });
 
   return {
-    guides: GUIDES.length,
+    guides: ALL_SEED_GUIDES.length,
+    launchGuides: LAUNCH_GUIDES.length,
     sitePages: 1,
     status: ContentStatus.PUBLISHED,
   };

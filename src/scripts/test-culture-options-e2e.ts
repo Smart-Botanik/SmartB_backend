@@ -1,6 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import { PrismaClient } from "@prisma/client";
-import { ContentFacetsService } from "../modules/content-facets/content-facets.service";
+import { ContentEdgesRemoteGraphqlClient } from "../modules/content-facets/content-edges-remote.graphql-client";
+import { ContentFacetsRemoteService } from "../modules/content-facets/content-facets.remote-service";
 import { CultureOptionsService } from "../modules/content-facets/culture-options.service";
 import { TaxonomyRemoteGraphqlClient } from "../modules/taxonomy/taxonomy-remote.graphql-client";
 import { TaxonomyTagRemoteService } from "../modules/taxonomy/taxonomy-tag.remote-service";
@@ -13,9 +14,12 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 async function main() {
-  const url = process.env.TAXONOMY_SERVICE_URL?.trim();
-  if (!url) {
-    console.error("Culture options e2e requires TAXONOMY_SERVICE_URL");
+  const taxonomyUrl = process.env.TAXONOMY_SERVICE_URL?.trim();
+  const edgesUrl = process.env.CONTENT_EDGES_SERVICE_URL?.trim();
+  if (!taxonomyUrl || !edgesUrl) {
+    console.error(
+      "Culture options e2e requires TAXONOMY_SERVICE_URL and CONTENT_EDGES_SERVICE_URL",
+    );
     process.exitCode = 1;
     return;
   }
@@ -25,9 +29,9 @@ async function main() {
   const taxonomyTagService = new TaxonomyTagRemoteService(
     new TaxonomyRemoteGraphqlClient(config),
   );
-  const contentFacetsService = new ContentFacetsService(
+  const contentFacetsService = new ContentFacetsRemoteService(
+    new ContentEdgesRemoteGraphqlClient(config),
     prisma as never,
-    taxonomyTagService,
   );
   const cultureOptionsService = new CultureOptionsService(
     taxonomyTagService,
@@ -49,9 +53,37 @@ async function main() {
     assert(tomato.hubSlug === "tomat", "Expected hub slug tomat");
     assert(tomato.icon.kind === "EMOJI", "Expected emoji icon");
     assert(tomato.icon.emoji === "🍅", "Expected tomato emoji");
+    assert(tomato.preview?.id, "Expected tomato preview/thumbnail media");
+    assert(
+      tomato.preview?.url?.includes("/uploads/content-facets/culture/tomato/"),
+      "Expected tomato preview url from seed media",
+    );
+
+    const tomatoTags = (await taxonomyTagService.tagsByKeys(["crop.tomato"])) as Array<{
+      id: string;
+      key: string;
+    }>;
+    const tomatoBundle = await contentFacetsService.findPublishedBundle({
+      type: "TAXONOMY_TAG",
+      id: tomatoTags[0]?.id ?? "",
+      key: "crop.tomato",
+    });
+    assert(
+      Boolean(tomatoBundle?.words?.hubLead?.trim()),
+      "Expected tomato hub_lead from published facets",
+    );
+    assert(tomatoBundle?.imageM?.id, "Expected tomato IMAGE_M on published bundle");
+    assert(
+      (tomatoBundle?.previews?.length ?? 0) >= 1,
+      "Expected tomato PREVIEW on published bundle",
+    );
 
     const eggplant = catalog.options.find(o => o.tagKey === "crop.eggplant");
     assert(eggplant?.icon.emoji === "🍆", "Expected eggplant emoji");
+    assert(eggplant?.preview?.id, "Expected eggplant preview media");
+
+    const zucchini = catalog.options.find(o => o.tagKey === "crop.zucchini");
+    assert(zucchini?.icon.emoji === "🥒", "Expected zucchini emoji from profile seed");
 
     console.log("Culture options smoke OK");
   } catch (error) {

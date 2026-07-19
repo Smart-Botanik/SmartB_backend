@@ -8,14 +8,18 @@ import {
   Resolver,
 } from "@nestjs/graphql";
 import { Role } from "@growing/contracts";
-import { ContentStatus, CropKind } from "@prisma/client";
+import type { CropKind } from "@growing/contracts";
+import { ContentStatus } from "@prisma/client";
+import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
 import { ContentService } from "./content.service";
 
 type TCropGuideParent = {
+  id: string;
   bodySiteMd?: string;
+  coverMediaId?: string | null;
   coverMedia?: {
     id: string;
     url: string;
@@ -25,15 +29,26 @@ type TCropGuideParent = {
     height?: number | null;
     createdAt: Date;
   } | null;
+  taxonomyTags?: unknown[];
 };
 
 @Resolver("CropGuide")
 export class CropGuideResolver {
-  constructor(private readonly contentService: ContentService) {}
+  constructor(
+    private readonly contentService: ContentService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @ResolveField("cover")
-  cover(@Parent() guide: TCropGuideParent) {
-    return guide.coverMedia ?? null;
+  async cover(@Parent() guide: TCropGuideParent) {
+    if (guide.coverMedia) return guide.coverMedia;
+    if (!guide.coverMediaId) return null;
+    return this.prisma.media.findUnique({ where: { id: guide.coverMediaId } });
+  }
+
+  @ResolveField("coverMediaId")
+  coverMediaId(@Parent() guide: TCropGuideParent) {
+    return guide.coverMediaId ?? guide.coverMedia?.id ?? null;
   }
 
   @ResolveField("bodySiteMdResolved")
@@ -42,7 +57,8 @@ export class CropGuideResolver {
   }
 
   @ResolveField("taxonomyTags")
-  taxonomyTags(@Parent() guide: { id: string }) {
+  taxonomyTags(@Parent() guide: TCropGuideParent) {
+    if (guide.taxonomyTags) return guide.taxonomyTags;
     return this.contentService.resolveCropGuideTaxonomyTags(guide.id);
   }
 

@@ -1,8 +1,9 @@
 import type {
-  ContentFacetKind,
   ContentFacetProfileKind,
   ContentFacetSubjectType,
-} from "@prisma/client";
+  ContentFacetWords,
+} from "@growing/contracts";
+import type { ContentFacetSlotRecord } from "@growing/contracts";
 
 export type ContentFacetSubjectInput = {
   type: ContentFacetSubjectType;
@@ -10,18 +11,29 @@ export type ContentFacetSubjectInput = {
   key?: string | null;
 };
 
-export type ContentFacetSlotInput = {
-  kind: ContentFacetKind;
-  role?: string | null;
-  mediaId?: string | null;
-  textValue?: string | null;
-  sortOrder?: number | null;
-};
-
 export type UpsertContentFacetProfileParams = {
   subject: ContentFacetSubjectInput;
   profileKind: ContentFacetProfileKind;
-  slots: ContentFacetSlotInput[];
+  slots: ContentFacetSlotRecord[];
+};
+
+export type MediaRecord = {
+  id: string;
+  url: string;
+  mime?: string | null;
+  size?: number | null;
+  width?: number | null;
+  height?: number | null;
+  createdAt: Date;
+};
+
+export type ContentFacetSlotRow = {
+  id: string;
+  kind: string;
+  role: string | null;
+  mediaId: string | null;
+  textValue: string | null;
+  sortOrder: number;
 };
 
 export type ContentFacetProfileWithSlots = {
@@ -35,27 +47,7 @@ export type ContentFacetProfileWithSlots = {
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  slots: Array<{
-    id: string;
-    profileId: string;
-    kind: ContentFacetKind;
-    role: string | null;
-    mediaId: string | null;
-    textValue: string | null;
-    sortOrder: number;
-    createdAt: Date;
-    updatedAt: Date;
-  }>;
-};
-
-export type MediaRecord = {
-  id: string;
-  url: string;
-  mime: string | null;
-  size: number | null;
-  width: number | null;
-  height: number | null;
-  createdAt: Date;
+  slots: ContentFacetSlotRow[];
 };
 
 export type ContentFacetBundleDto = {
@@ -64,17 +56,10 @@ export type ContentFacetBundleDto = {
   subjectKey: string | null;
   profileKind: ContentFacetProfileKind;
   revision: string;
-  chipIcon?: string | null;
+  chipIcon: string | null;
   logo: MediaRecord | null;
   imageM: MediaRecord | null;
   previews: MediaRecord[];
   randomImages: MediaRecord[];
-  words: {
-    hubTitle?: string | null;
-    hubLead?: string | null;
-    chipCaption?: string | null;
-    seoDescription?: string | null;
-    aboutShort?: string | null;
-    highlight?: string | null;
-  };
+  words: ContentFacetWords;
 };
