@@ -22,6 +22,14 @@ import {
   ResizeOptions,
 } from "../../infrastructure/image-processing/image-processing.service";
 
+/** Local upload file shape (TS7: UploadedFilePayload ambient merge is unreliable). */
+type UploadedFilePayload = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+};
+
 @Controller("media")
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
@@ -62,7 +70,7 @@ export class MediaController {
   @Post("upload")
   @UseInterceptors(FileInterceptor("file"))
   async upload(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedFilePayload,
     @Body() body: { folder?: string; entityType?: string; entityId?: string },
   ) {
     if (!file) {
@@ -94,7 +102,7 @@ export class MediaController {
   @Post("upload-with-crop")
   @UseInterceptors(FileInterceptor("file"))
   async uploadWithCrop(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedFilePayload,
     @Body()
     body: {
       folder?: string;
@@ -150,7 +158,7 @@ export class MediaController {
   @Post("crop-image")
   @UseInterceptors(FileInterceptor("file"))
   async cropImage(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedFilePayload,
     @Body()
     body: {
       cropOptions: { x: number; y: number; width: number; height: number };
@@ -200,7 +208,7 @@ export class MediaController {
 
   @Post("get-image-info")
   @UseInterceptors(FileInterceptor("file"))
-  async getImageInfo(@UploadedFile() file: Express.Multer.File) {
+  async getImageInfo(@UploadedFile() file: UploadedFilePayload) {
     if (!file) {
       throw new BadRequestException("Missing file");
     }
@@ -221,7 +229,7 @@ export class MediaController {
   @Post("admin/media/upload")
   @UseInterceptors(FileInterceptor("file"))
   async adminUpload(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedFilePayload,
     @Body() body: { folder?: string; entityType?: string; entityId?: string },
   ) {
     if (!file) {
@@ -253,7 +261,7 @@ export class MediaController {
   @Post("admin/media/upload-with-crop")
   @UseInterceptors(FileInterceptor("file"))
   async adminUploadWithCrop(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedFilePayload,
     @Body()
     body: {
       folder?: string;
