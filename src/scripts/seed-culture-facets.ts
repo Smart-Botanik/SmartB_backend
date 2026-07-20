@@ -71,45 +71,73 @@ async function syncCultureFacetAssetFile(
   return { size: st.size };
 }
 
+/** Upload culture facet asset into media-service (ADR-0018). */
 async function ensureCultureFacetMedia(
-  prisma: PrismaClient,
+  _prisma: PrismaClient,
   cropKey: string,
   slot: "image-m" | "preview",
 ): Promise<string> {
   const key = cultureFacetMediaKey(cropKey, slot);
   const width = slot === "image-m" ? 640 : 320;
   const height = slot === "image-m" ? 360 : 320;
-  const synced = await syncCultureFacetAssetFile(cropKey, slot);
+  const assetPath = cultureFacetAssetPath(cropKey, slot);
 
-  const existing = await prisma.media.findFirst({ where: { key } });
-  if (existing) {
-    if (synced && existing.size !== synced.size) {
-      await prisma.media.update({
-        where: { id: existing.id },
-        data: {
-          size: synced.size,
-          width,
-          height,
-          mime: CULTURE_FACET_MEDIA_MIME,
-          url: `/uploads/${key}`,
-        },
-      });
-    }
-    return existing.id;
+  const baseUrl = (
+    process.env.MEDIA_SERVICE_URL?.trim() || "http://localhost:3014"
+  ).replace(/\/$/, "");
+  const internalKey =
+    process.env.MEDIA_SERVICE_INTERNAL_KEY?.trim() || "dev-media-internal";
+
+  let fileBuffer: Buffer | null = null;
+  try {
+    fileBuffer = await fs.readFile(assetPath);
+  } catch {
+    // No fixture file — create a 1x1 jpeg placeholder is out of scope; skip upload
   }
 
-  const created = await prisma.media.create({
-    data: {
-      provider: "local",
-      bucket: "uploads",
-      key,
-      url: `/uploads/${key}`,
-      mime: CULTURE_FACET_MEDIA_MIME,
-      width,
-      height,
-      size: synced?.size,
-    },
+  if (!fileBuffer) {
+    // List existing by search on key path
+    const listRes = await fetch(
+      `${baseUrl}/media/admin/media?search=${encodeURIComponent(key)}&limit=1`,
+      { headers: { "X-Media-Internal-Key": internalKey } },
+    );
+    if (listRes.ok) {
+      const list = (await listRes.json()) as {
+        media?: Array<{ id: string; key?: string }>;
+      };
+      const hit = list.media?.find((m) => m.key === key || m.key?.endsWith(key));
+      if (hit) return hit.id;
+    }
+    throw new Error(
+      `Culture facet asset missing and no media row for key=${key} (${assetPath})`,
+    );
+  }
+
+  await syncCultureFacetAssetFile(cropKey, slot);
+
+  const form = new FormData();
+  form.append(
+    "file",
+    new Blob([new Uint8Array(fileBuffer)], { type: CULTURE_FACET_MEDIA_MIME }),
+    path.basename(key),
+  );
+  form.append("folder", path.dirname(key).replace(/\\/g, "/"));
+  form.append("entityType", "general");
+
+  const uploadRes = await fetch(`${baseUrl}/media/admin/media/upload`, {
+    method: "POST",
+    headers: { "X-Media-Internal-Key": internalKey },
+    body: form,
   });
+  if (!uploadRes.ok) {
+    const text = await uploadRes.text().catch(() => "");
+    throw new Error(
+      `media-service upload failed HTTP ${uploadRes.status}: ${text}`,
+    );
+  }
+  const created = (await uploadRes.json()) as { id: string };
+  void width;
+  void height;
   return created.id;
 }
 

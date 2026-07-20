@@ -1,13 +1,52 @@
-import { Module } from "@nestjs/common";
-import { LocalStorageModule } from "../../infrastructure/storage/local-storage.module";
-import { ImageProcessingModule } from "../../infrastructure/image-processing/image-processing.module";
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  OnModuleInit,
+  RequestMethod,
+  ServiceUnavailableException,
+} from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { MediaController } from "./media.controller";
+import { MediaRemoteHttpClient } from "./media-remote.http-client";
+import { MediaRemoteService } from "./media.remote-service";
 import { MediaService } from "./media.service";
+import { MediaUploadsProxyMiddleware } from "./media-uploads-proxy.middleware";
 
+/**
+ * Bounded context: Media — remote-only after ADR-0018 cutover.
+ */
 @Module({
-  imports: [LocalStorageModule, ImageProcessingModule],
+  imports: [ConfigModule],
   controllers: [MediaController],
-  providers: [MediaService],
-  exports: [MediaService],
+  providers: [
+    MediaRemoteHttpClient,
+    MediaRemoteService,
+    { provide: MediaService, useClass: MediaRemoteService },
+    MediaUploadsProxyMiddleware,
+  ],
+  exports: [MediaService, MediaRemoteService, MediaRemoteHttpClient],
 })
-export class MediaModule {}
+export class MediaModule implements NestModule, OnModuleInit {
+  constructor(private readonly config: ConfigService) {}
+
+  onModuleInit() {
+    const url = this.config.get<string>("MEDIA_SERVICE_URL")?.trim();
+    const cutover =
+      this.config.get<string>("MEDIA_CUTOVER")?.trim() !== "false";
+    if (cutover && !url) {
+      throw new ServiceUnavailableException(
+        "MEDIA_CUTOVER requires MEDIA_SERVICE_URL (media-service)",
+      );
+    }
+  }
+
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(MediaUploadsProxyMiddleware)
+      .forRoutes({ path: "uploads/(.*)", method: RequestMethod.GET }, {
+        path: "uploads/(.*)",
+        method: RequestMethod.HEAD,
+      });
+  }
+}

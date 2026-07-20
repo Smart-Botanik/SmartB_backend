@@ -32,17 +32,30 @@ async function main() {
   };
 
   try {
-    const media = await prisma.media.create({
-      data: {
-        provider: "local",
-        bucket: "uploads",
-        key: "content-facets/smoke-logo.png",
-        url: "/uploads/content-facets/smoke-logo.png",
-        mime: "image/png",
-        width: 64,
-        height: 64,
-      },
+    const mediaBase = (
+      process.env.MEDIA_SERVICE_URL?.trim() || "http://localhost:3014"
+    ).replace(/\/$/, "");
+    const mediaKey =
+      process.env.MEDIA_SERVICE_INTERNAL_KEY?.trim() || "dev-media-internal";
+    // Minimal 1x1 PNG
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const form = new FormData();
+    form.append(
+      "file",
+      new Blob([new Uint8Array(png)], { type: "image/png" }),
+      "smoke-logo.png",
+    );
+    form.append("folder", "content-facets");
+    const uploadRes = await fetch(`${mediaBase}/media/admin/media/upload`, {
+      method: "POST",
+      headers: { "X-Media-Internal-Key": mediaKey },
+      body: form,
     });
+    assert(uploadRes.ok, `media upload HTTP ${uploadRes.status}`);
+    const media = (await uploadRes.json()) as { id: string };
 
     const profile = await service.upsertProfile({
       subject,

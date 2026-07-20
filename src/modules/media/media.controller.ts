@@ -14,13 +14,8 @@ import {
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
   MediaService,
-  MediaUploadParams,
   MediaListParams,
 } from "./media.service";
-import {
-  CropOptions,
-  ResizeOptions,
-} from "../../infrastructure/image-processing/image-processing.service";
 
 /** Local upload file shape (TS7: UploadedFilePayload ambient merge is unreliable). */
 type UploadedFilePayload = {

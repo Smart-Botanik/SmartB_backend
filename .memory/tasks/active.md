@@ -7,6 +7,9 @@ WIP limit: **≤ 5**. Канон: этот файл + [`cards/`](./cards/). **Б
 1. [ ] **BK-STAB-1** — Backend API stabilization (continuous)
    - Next: validation pipes / BK-PR-1 / media boundary hygiene
    - Card: [`cards/BK-STAB-1.md`](./cards/BK-STAB-1.md)
+2. [ ] **BK-MS-MEDIA-2** — Media service extract (BFF proxy + cutover)
+   - Next: submodule scaffold + MEDIA_CUTOVER remote
+   - Card: [`cards/BK-MS-MEDIA-2.md`](./cards/BK-MS-MEDIA-2.md)
 
 ## Done (кратко)
 

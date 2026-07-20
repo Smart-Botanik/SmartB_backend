@@ -4,6 +4,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { MediaModule } from "../media/media.module";
 import { ContentRemoteGraphqlClient } from "./content-remote.graphql-client";
 import { ContentRemoteService } from "./content.remote-service";
 import { CropGuideResolver, SitePageResolver } from "./content.resolver";
@@ -13,7 +14,7 @@ import { ContentService } from "./content.service";
  * Bounded context: CropGuide + SitePage — remote-only after BK-MS-CONTENT cutover.
  */
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, MediaModule],
   providers: [
     ContentRemoteGraphqlClient,
     ContentRemoteService,

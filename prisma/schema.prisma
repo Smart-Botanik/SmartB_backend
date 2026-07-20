@@ -365,21 +365,7 @@ model DiaryProjectionCheckpoint {
   @@index([diaryId, createdAt])
 }
 
-model Media {
-  id        String   @id @default(cuid())
-  provider  String
-  bucket    String
-  key       String
-  url       String
-  mime      String?
-  size      Int?
-  width     Int?
-  height    Int?
-  createdAt DateTime @default(now())
-
-  @@index([provider])
-  @@index([bucket])
-}
+// Media table moved to media-service / media_db (ADR-0018). Opaque mediaId only.
 
 // --- Location (ex Strapi api::location) ------------------------------------
 

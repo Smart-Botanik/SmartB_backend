@@ -2,7 +2,6 @@ import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import { join } from "path";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
@@ -39,9 +38,7 @@ async function bootstrap() {
   app.use(require("express").json());
   app.use(require("express").urlencoded({ extended: true }));
 
-  // Serve static files from uploads directory
-  const uploadsDir = join(process.cwd(), "uploads");
-  app.use("/uploads", require("express").static(uploadsDir));
+  // /uploads is proxied to media-service via MediaUploadsProxyMiddleware (ADR-0018)
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -72,7 +69,7 @@ async function bootstrap() {
 
   await app.listen(port);
   console.log(`🚀 Application is running on: http://localhost:${port}`);
-  console.log(`📁 Serving uploads from: ${uploadsDir}`);
+  console.log(`📁 /uploads proxied to MEDIA_SERVICE_URL`);
 }
 
 bootstrap();

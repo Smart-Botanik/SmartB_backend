@@ -10,10 +10,10 @@ import {
 import { Role } from "@growing/contracts";
 import type { CropKind } from "@growing/contracts";
 import { ContentStatus } from "@prisma/client";
-import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { GqlJwtAuthGuard } from "../auth/guards/gql-jwt-auth.guard";
 import { GqlRolesGuard } from "../auth/guards/gql-roles.guard";
+import { MediaService } from "../media/media.service";
 import { ContentService } from "./content.service";
 
 type TCropGuideParent = {
@@ -36,14 +36,14 @@ type TCropGuideParent = {
 export class CropGuideResolver {
   constructor(
     private readonly contentService: ContentService,
-    private readonly prisma: PrismaService,
+    private readonly mediaService: MediaService,
   ) {}
 
   @ResolveField("cover")
   async cover(@Parent() guide: TCropGuideParent) {
     if (guide.coverMedia) return guide.coverMedia;
     if (!guide.coverMediaId) return null;
-    return this.prisma.media.findUnique({ where: { id: guide.coverMediaId } });
+    return this.mediaService.getMediaById(guide.coverMediaId);
   }
 
   @ResolveField("coverMediaId")

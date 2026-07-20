@@ -5,7 +5,7 @@ import {
 } from "@growing/content-markdown";
 import type { CropKind } from "@growing/contracts";
 import { ContentStatus } from "@prisma/client";
-import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { MediaService } from "../media/media.service";
 import { ContentRemoteGraphqlClient } from "./content-remote.graphql-client";
 import {
   MUTATION_CREATE_CROP_GUIDE,
@@ -35,13 +35,13 @@ type RemoteGuide = {
 
 /**
  * BFF proxy to content-service (BK-MS-CONTENT cutover).
- * Media URL resolution stays local (BFF owns Media).
+ * Media URL resolution via media-service (ADR-0018).
  */
 @Injectable()
 export class ContentRemoteService extends ContentService {
   constructor(
     private readonly remote: ContentRemoteGraphqlClient,
-    private readonly mediaPrisma: PrismaService,
+    private readonly mediaService: MediaService,
   ) {
     super();
   }
@@ -63,11 +63,8 @@ export class ContentRemoteService extends ContentService {
     const ids = extractMediaRefs(markdown);
     if (ids.length === 0) return markdown;
 
-    const media = await this.mediaPrisma.media.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, url: true },
-    });
-    const urlById = Object.fromEntries(media.map(item => [item.id, item.url]));
+    const media = await this.mediaService.findManyByIds(ids);
+    const urlById = Object.fromEntries(media.map((item) => [item.id, item.url]));
     return resolveMediaRefs(markdown, urlById);
   }
 

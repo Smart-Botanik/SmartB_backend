@@ -19,6 +19,7 @@
 | # | ID | Суть | Card |
 |---|-----|------|------|
 | 1 | BK-STAB-1 | BFF stabilization / continuous | [BK-STAB-1](./tasks/cards/BK-STAB-1.md) |
+| 2 | BK-MS-MEDIA-2 | Media service extract + cutover | [BK-MS-MEDIA-2](./tasks/cards/BK-MS-MEDIA-2.md) |
 
 Platform WIP (другие apps): `../../memory/hub.md` — не дублировать здесь.
 
