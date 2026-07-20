@@ -3,6 +3,13 @@
 > Локальный лог `backend_nest/`. **Не** копия platform `memory/project/history.md`.  
 > Шаблон: date · role · change · impact · reason.
 
+## 2026-07-20 — BK-MS-MEDIA-2: start fix after Media drop ([Backend])
+
+**Role**: Backend  
+**Change**: Typed `MediaService`/`MediaRecord` (drop `unknown`); content-facets stitch via `MediaService` instead of removed `prisma.media`.  
+**Impact**: `tsc` / `npm run dev` compile clean; Nest boots on :3001 when grow_db :5434 is up.  
+**Reason**: Schema dropped Media (ADR-0018) but facets + controller still assumed local Prisma / untyped remote.
+
 ## 2026-07-20 — TS-MIG-1 follow-up: `dev` без Nest CLI ([Backend])
 
 **Role**: Backend  

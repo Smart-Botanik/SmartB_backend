@@ -4,8 +4,8 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { PrismaModule } from "../../infrastructure/prisma/prisma.module";
 import { ContentModule } from "../content/content.module";
+import { MediaModule } from "../media/media.module";
 import { TaxonomyModule } from "../taxonomy/taxonomy.module";
 import { ContentEdgesRemoteGraphqlClient } from "./content-edges-remote.graphql-client";
 import { ContentFacetsRemoteService } from "./content-facets.remote-service";
@@ -22,7 +22,7 @@ import { TagSurfaceService } from "./tag-surface.service";
  * TagSurface / CultureOptions orchestration stays in BFF (ADR-0015 §5).
  */
 @Module({
-  imports: [ConfigModule, PrismaModule, TaxonomyModule, ContentModule],
+  imports: [ConfigModule, MediaModule, TaxonomyModule, ContentModule],
   providers: [
     ContentEdgesRemoteGraphqlClient,
     ContentFacetsRemoteService,

@@ -27,3 +27,34 @@ export interface MediaListParams {
   entityType?: string;
   search?: string;
 }
+
+/** Media row shape returned by media-service / BFF MediaService. */
+export type MediaRecord = {
+  id: string;
+  url: string;
+  mime?: string | null;
+  size?: number | null;
+  width?: number | null;
+  height?: number | null;
+  key?: string;
+  provider?: string;
+  bucket?: string;
+  createdAt: string | Date;
+};
+
+export type MediaListResult = {
+  media: MediaRecord[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+};
+
+export type MediaStats = {
+  total: number;
+  totalSize: number;
+  byType: Array<{ type: string | null; count: number; size: number }>;
+  byProvider: Array<{ provider: string; count: number }>;
+};

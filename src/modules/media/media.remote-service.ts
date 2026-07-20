@@ -1,20 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { MediaRemoteHttpClient } from "./media-remote.http-client";
-import type { MediaListParams, MediaUploadParams } from "./media.types";
+import type {
+  MediaListParams,
+  MediaListResult,
+  MediaRecord,
+  MediaStats,
+  MediaUploadParams,
+} from "./media.types";
 import { MediaService } from "./media.service";
-
-type MediaRecord = {
-  id: string;
-  url: string;
-  mime?: string | null;
-  size?: number | null;
-  width?: number | null;
-  height?: number | null;
-  key?: string;
-  provider?: string;
-  bucket?: string;
-  createdAt: string | Date;
-};
 
 /**
  * BFF proxy to media-service (ADR-0018 / BK-MS-MEDIA-2 hard cutover).
@@ -80,7 +73,7 @@ export class MediaRemoteService extends MediaService {
     });
   }
 
-  async getMediaList(params: MediaListParams = {}) {
+  async getMediaList(params: MediaListParams = {}): Promise<MediaListResult> {
     const q = new URLSearchParams();
     if (params.page != null) q.set("page", String(params.page));
     if (params.limit != null) q.set("limit", String(params.limit));
@@ -88,15 +81,10 @@ export class MediaRemoteService extends MediaService {
     if (params.entityType) q.set("entityType", params.entityType);
     if (params.search) q.set("search", params.search);
     const qs = q.toString();
-    return this.http.requestJson<{
-      media: MediaRecord[];
-      pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        pages: number;
-      };
-    }>("GET", `/media/admin/media${qs ? `?${qs}` : ""}`);
+    return this.http.requestJson<MediaListResult>(
+      "GET",
+      `/media/admin/media${qs ? `?${qs}` : ""}`,
+    );
   }
 
   async getMediaById(id: string): Promise<MediaRecord | null> {
@@ -131,13 +119,8 @@ export class MediaRemoteService extends MediaService {
     );
   }
 
-  async getMediaStats() {
-    return this.http.requestJson<{
-      total: number;
-      totalSize: number;
-      byType: Array<{ type: string | null; count: number; size: number }>;
-      byProvider: Array<{ provider: string; count: number }>;
-    }>("GET", "/media/admin/media/stats");
+  async getMediaStats(): Promise<MediaStats> {
+    return this.http.requestJson<MediaStats>("GET", "/media/admin/media/stats");
   }
 
   async getImageInfo(fileBuffer: Buffer) {
@@ -165,13 +148,9 @@ export class MediaRemoteService extends MediaService {
     return { isValid: true, ...info };
   }
 
-  async findManyByIds(
-    ids: string[],
-  ): Promise<Array<{ id: string; url: string }>> {
+  async findManyByIds(ids: string[]): Promise<MediaRecord[]> {
     if (ids.length === 0) return [];
     const results = await Promise.all(ids.map((id) => this.getMediaById(id)));
-    return results
-      .filter((m): m is MediaRecord => Boolean(m?.id && m?.url))
-      .map((m) => ({ id: m.id, url: m.url }));
+    return results.filter((m): m is MediaRecord => Boolean(m?.id && m?.url));
   }
 }

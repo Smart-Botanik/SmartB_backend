@@ -1,7 +1,19 @@
 import { Injectable } from "@nestjs/common";
-import type { MediaListParams, MediaUploadParams } from "./media.types";
+import type {
+  MediaListParams,
+  MediaListResult,
+  MediaRecord,
+  MediaStats,
+  MediaUploadParams,
+} from "./media.types";
 
-export type { MediaListParams, MediaUploadParams } from "./media.types";
+export type {
+  MediaListParams,
+  MediaListResult,
+  MediaRecord,
+  MediaStats,
+  MediaUploadParams,
+} from "./media.types";
 
 /** DI token; runtime: {@link MediaRemoteService} (ADR-0018 cutover). */
 @Injectable()
@@ -16,39 +28,29 @@ export abstract class MediaService {
     cropOptions?: MediaUploadParams["cropOptions"];
     resizeOptions?: MediaUploadParams["resizeOptions"];
     generateThumbnail?: boolean;
-  }): Promise<unknown>;
+  }): Promise<MediaRecord>;
 
-  abstract uploadMediaWithFolder(params: MediaUploadParams): Promise<unknown>;
+  abstract uploadMediaWithFolder(params: MediaUploadParams): Promise<MediaRecord>;
 
-  abstract getMediaList(params?: MediaListParams): Promise<{
-    media: unknown[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      pages: number;
-    };
-  }>;
+  abstract getMediaList(params?: MediaListParams): Promise<MediaListResult>;
 
-  abstract getMediaById(id: string): Promise<unknown | null>;
+  abstract getMediaById(id: string): Promise<MediaRecord | null>;
 
-  abstract deleteMedia(id: string): Promise<unknown>;
+  abstract deleteMedia(id: string): Promise<MediaRecord>;
 
   abstract updateMediaMetadata(
     id: string,
     metadata: Partial<{ width: number; height: number }>,
-  ): Promise<unknown>;
+  ): Promise<MediaRecord>;
 
-  abstract getMediaStats(): Promise<unknown>;
+  abstract getMediaStats(): Promise<MediaStats>;
 
-  abstract getImageInfo(fileBuffer: Buffer): Promise<unknown>;
+  abstract getImageInfo(fileBuffer: Buffer): Promise<Record<string, unknown>>;
 
   abstract validateImage(
     fileBuffer: Buffer,
     mimeType?: string,
-  ): Promise<unknown>;
+  ): Promise<Record<string, unknown>>;
 
-  abstract findManyByIds(
-    ids: string[],
-  ): Promise<Array<{ id: string; url: string }>>;
+  abstract findManyByIds(ids: string[]): Promise<MediaRecord[]>;
 }

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { MediaService } from "../media/media.service";
 import { ContentEdgesRemoteGraphqlClient } from "./content-edges-remote.graphql-client";
 import {
   slotsToRecords,
@@ -24,15 +24,38 @@ import type {
 
 /**
  * BFF proxy to content-edges (BK-MS-EDGES cutover).
- * Media URL resolution stays local (BFF owns Media).
+ * Media URL resolution via MediaService (ADR-0018 / media-service).
  */
 @Injectable()
 export class ContentFacetsRemoteService extends ContentFacetsService {
   constructor(
     private readonly remote: ContentEdgesRemoteGraphqlClient,
-    private readonly mediaPrisma: PrismaService,
+    private readonly mediaService: MediaService,
   ) {
     super();
+  }
+
+  private toFacetMedia(row: {
+    id: string;
+    url: string;
+    mime?: string | null;
+    size?: number | null;
+    width?: number | null;
+    height?: number | null;
+    createdAt: string | Date;
+  }): MediaRecord {
+    return {
+      id: row.id,
+      url: row.url,
+      mime: row.mime,
+      size: row.size,
+      width: row.width,
+      height: row.height,
+      createdAt:
+        row.createdAt instanceof Date
+          ? row.createdAt
+          : new Date(row.createdAt),
+    };
   }
 
   private async loadMediaMap(ids: string[]): Promise<Map<string, MediaRecord>> {
@@ -40,23 +63,10 @@ export class ContentFacetsRemoteService extends ContentFacetsService {
       return new Map();
     }
 
-    const rows = await this.mediaPrisma.media.findMany({
-      where: { id: { in: ids } },
-    });
+    const rows = await this.mediaService.findManyByIds(ids);
 
     return new Map(
-      rows.map(row => [
-        row.id,
-        {
-          id: row.id,
-          url: row.url,
-          mime: row.mime,
-          size: row.size,
-          width: row.width,
-          height: row.height,
-          createdAt: row.createdAt,
-        },
-      ]),
+      rows.map(row => [row.id, this.toFacetMedia(row)]),
     );
   }
 
@@ -204,19 +214,9 @@ export class ContentFacetsRemoteService extends ContentFacetsService {
   async resolveSlotMedia(mediaId?: string | null): Promise<MediaRecord | null> {
     if (!mediaId) return null;
 
-    const media = await this.mediaPrisma.media.findUnique({
-      where: { id: mediaId },
-    });
+    const media = await this.mediaService.getMediaById(mediaId);
     if (!media) return null;
 
-    return {
-      id: media.id,
-      url: media.url,
-      mime: media.mime,
-      size: media.size,
-      width: media.width,
-      height: media.height,
-      createdAt: media.createdAt,
-    };
+    return this.toFacetMedia(media);
   }
 }

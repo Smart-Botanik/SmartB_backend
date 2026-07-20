@@ -83,7 +83,7 @@ async function ensureCultureFacetMedia(
   const assetPath = cultureFacetAssetPath(cropKey, slot);
 
   const baseUrl = (
-    process.env.MEDIA_SERVICE_URL?.trim() || "http://localhost:3014"
+    process.env.MEDIA_SERVICE_URL?.trim() || "http://localhost:3015"
   ).replace(/\/$/, "");
   const internalKey =
     process.env.MEDIA_SERVICE_INTERNAL_KEY?.trim() || "dev-media-internal";

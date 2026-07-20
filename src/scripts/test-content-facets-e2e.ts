@@ -33,7 +33,7 @@ async function main() {
 
   try {
     const mediaBase = (
-      process.env.MEDIA_SERVICE_URL?.trim() || "http://localhost:3014"
+      process.env.MEDIA_SERVICE_URL?.trim() || "http://localhost:3015"
     ).replace(/\/$/, "");
     const mediaKey =
       process.env.MEDIA_SERVICE_INTERNAL_KEY?.trim() || "dev-media-internal";

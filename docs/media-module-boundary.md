@@ -47,7 +47,7 @@ Do **not** use `prisma.media` outside media module after cutover.
 
 | Env | Purpose |
 |-----|---------|
-| `MEDIA_SERVICE_URL` | e.g. `http://localhost:3014` |
+| `MEDIA_SERVICE_URL` | e.g. `http://localhost:3015` |
 | `MEDIA_SERVICE_INTERNAL_KEY` | Header `X-Media-Internal-Key` |
 | `MEDIA_CUTOVER` | `true` → remote required; no local Prisma Media |
 | `MEDIA_DATABASE_URL` | Target for `npm run db:export-media` |
@@ -56,7 +56,7 @@ Standalone: [`../../services/media/README.md`](../../services/media/README.md) (
 
 ## Cutover checklist (BK-MS-MEDIA-2)
 
-- [ ] Submodule + `media_db` :5439 + service :3014
+- [ ] Submodule + `media_db` :5439 + service :3015
 - [ ] BFF remote proxy for `/media` and `/uploads`
 - [ ] GraphQL/MD resolve via remote `findById`
 - [ ] Export/verify + drop monolith `Media` model

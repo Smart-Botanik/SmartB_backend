@@ -12,10 +12,8 @@ import {
   Put,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import {
-  MediaService,
-  MediaListParams,
-} from "./media.service";
+import { MediaService } from "./media.service";
+import type { MediaListParams } from "./media.types";
 
 /** Local upload file shape (TS7: UploadedFilePayload ambient merge is unreliable). */
 type UploadedFilePayload = {
