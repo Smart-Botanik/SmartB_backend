@@ -42,11 +42,13 @@ export class MediaModule implements NestModule, OnModuleInit {
   }
 
   configure(consumer: MiddlewareConsumer) {
+    // Express 4 path-to-regexp: use `uploads/*` (splat). Nest-style `uploads/(.*)`
+    // does not match nested keys like /uploads/generals/.../file.jpg → client 404.
     consumer
       .apply(MediaUploadsProxyMiddleware)
-      .forRoutes({ path: "uploads/(.*)", method: RequestMethod.GET }, {
-        path: "uploads/(.*)",
-        method: RequestMethod.HEAD,
-      });
+      .forRoutes(
+        { path: "uploads/*", method: RequestMethod.GET },
+        { path: "uploads/*", method: RequestMethod.HEAD },
+      );
   }
 }
