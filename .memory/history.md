@@ -3,6 +3,34 @@
 > Локальный лог `backend_nest/`. **Не** копия platform `memory/project/history.md`.  
 > Шаблон: date · role · change · impact · reason.
 
+## 2026-07-23 — Social path: nest = app only ([Architect] · [Backend])
+
+**Role**: Architect · Backend  
+**Change**: ADR-0020 amended — site → social-service; removed Nest `SocialModule`; BK-ENGAGE-BFF-1 cancelled.  
+**Impact**: App BFF stays free of comments; site engages social SoT directly when mocks drop.  
+**Reason**: User: backend_nest is for app only; no comments there yet.
+
+## 2026-07-23 — BK-ENGAGE-BFF-1: social GraphQL proxy ([Backend])
+
+**Role**: Backend  
+**Change**: `SocialModule` remote client → social-service :3014; public stats/comments + auth like/comment; `SOCIAL_CUTOVER`; `discussionId` in CropGuide remote fields.  
+**Impact**: Site can call BFF `/graphql` for engagement; next SITE-USEFUL-3 swaps mocks.  
+**Reason**: ADR-0020 cutover path.
+
+## 2026-07-22 — BK-MS-GALLERY-1: galleries API + BFF proxy ([Backend])
+
+**Role**: Backend  
+**Change**: media-service schema `MediaGallery` / `MediaGalleryItem` / `MediaEntry` + `Media.kind`/`posterMediaId`; REST CRUD; BFF proxy routes + GraphQL `publishedGallery`; contracts `media-gallery`; site `/useful` sections + env gallery ids.  
+**Impact**: ADR-0019 path live for create/publish/read hydrated galleries.  
+**Reason**: Start implementing ARCH-MEDIA-TAX-1 story.
+
+## 2026-07-22 — BK-CF-CHIP-PNG-1: LOGO PNG over emoji ([Backend])
+
+**Role**: Backend  
+**Change**: `resolveCultureChipIcon` в `@growing/contracts` — приоритет LOGO (MEDIA/PNG) над TEXT `chip_icon` emoji.  
+**Impact**: `publishedCultureOptions` отдаёт `icon.kind=MEDIA` для всех культур с опубликованным LOGO, даже если seed emoji ещё в профиле.  
+**Reason**: Site sidebar не показывал PNG — emoji TEXT блокировал уже залитые LOGO (кроме tomato после CE-CHIP-PNG-1).
+
 ## 2026-07-20 — BK-MS-MEDIA-2: start fix after Media drop ([Backend])
 
 **Role**: Backend  

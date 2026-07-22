@@ -22,6 +22,7 @@ export const CROP_GUIDE_FIELDS = `
   bodySiteMd
   bodyTelegramMd
   coverMediaId
+  discussionId
   status
   publishedAt
   seoTitle
@@ -131,6 +132,65 @@ export const QUERY_PUBLISHED_SITE_PAGE = `
   }
 `;
 
+export const MEDIA_GALLERY_FIELDS = `
+  id
+  title
+  status
+  tagIds
+  createdAt
+  updatedAt
+  items {
+    id
+    galleryId
+    mediaId
+    caption
+    alt
+    sortOrder
+    posterMediaId
+    tagIds
+    media {
+      id
+      url
+      mime
+      size
+      width
+      height
+      kind
+      posterMediaId
+      createdAt
+    }
+    poster {
+      id
+      url
+      mime
+      size
+      width
+      height
+      kind
+      createdAt
+    }
+  }
+`;
+
+export const QUERY_PUBLISHED_GALLERY = `
+  query PublishedGallery($id: ID!) {
+    publishedGallery(id: $id) {
+      ${MEDIA_GALLERY_FIELDS}
+    }
+  }
+`;
+
+export const QUERY_PUBLISHED_USEFUL_GALLERIES = `
+  query PublishedUsefulGalleries {
+    publishedUsefulGalleries {
+      imageGalleryId
+      videoGalleryId
+      image { ${MEDIA_GALLERY_FIELDS} }
+      video { ${MEDIA_GALLERY_FIELDS} }
+    }
+  }
+`;
+
 export const MUTATION_CREATE_CROP_GUIDE = `
   mutation CreateCropGuide($input: CreateCropGuideInput!) {
     createCropGuide(input: $input) {
@@ -189,6 +249,147 @@ export const MUTATION_UNPUBLISH_SITE_PAGE = `
   mutation UnpublishSitePage($key: String!) {
     unpublishSitePage(key: $key) {
       ${SITE_PAGE_FIELDS}
+    }
+  }
+`;
+
+export const CALENDAR_DAY_MARK_FIELDS = `
+  id
+  taxonomyTagId
+  activityKind
+  favorability
+  note
+  createdAt
+  updatedAt
+`;
+
+export const CALENDAR_DAY_LIST_FIELDS = `
+  id
+  date
+  title
+  moonPhase
+  moonZodiacSign
+  generalState
+  status
+  publishedAt
+  markSummary {
+    favorableCount
+    neutralCount
+    unfavorableCount
+    byCulture {
+      taxonomyTagId
+      favorableCount
+      neutralCount
+      unfavorableCount
+    }
+  }
+  createdAt
+  updatedAt
+`;
+
+export const CALENDAR_DAY_FIELDS = `
+  id
+  date
+  title
+  bodyMd
+  moonPhase
+  moonZodiacSign
+  generalState
+  meta
+  status
+  publishedAt
+  cultureMarks {
+    ${CALENDAR_DAY_MARK_FIELDS}
+  }
+  createdAt
+  updatedAt
+`;
+
+export const QUERY_PUBLISHED_CALENDAR_DAYS = `
+  query PublishedCalendarDays(
+    $from: String!
+    $to: String!
+    $taxonomyTagIds: [ID!]
+    $activityKind: CalendarActivityKind
+  ) {
+    publishedCalendarDays(
+      from: $from
+      to: $to
+      taxonomyTagIds: $taxonomyTagIds
+      activityKind: $activityKind
+    ) {
+      ${CALENDAR_DAY_LIST_FIELDS}
+    }
+  }
+`;
+
+export const QUERY_PUBLISHED_CALENDAR_DAY = `
+  query PublishedCalendarDay($date: String!) {
+    publishedCalendarDay(date: $date) {
+      ${CALENDAR_DAY_FIELDS}
+    }
+  }
+`;
+
+export const QUERY_CALENDAR_DAYS = `
+  query CalendarDays(
+    $from: String!
+    $to: String!
+    $status: ContentStatus
+    $taxonomyTagIds: [ID!]
+    $activityKind: CalendarActivityKind
+  ) {
+    calendarDays(
+      from: $from
+      to: $to
+      status: $status
+      taxonomyTagIds: $taxonomyTagIds
+      activityKind: $activityKind
+    ) {
+      ${CALENDAR_DAY_LIST_FIELDS}
+    }
+  }
+`;
+
+export const QUERY_CALENDAR_DAY = `
+  query CalendarDay($date: String!) {
+    calendarDay(date: $date) {
+      ${CALENDAR_DAY_FIELDS}
+    }
+  }
+`;
+
+export const MUTATION_UPSERT_CALENDAR_DAY = `
+  mutation UpsertCalendarDay($input: UpsertCalendarDayInput!) {
+    upsertCalendarDay(input: $input) {
+      ${CALENDAR_DAY_FIELDS}
+    }
+  }
+`;
+
+export const MUTATION_PUBLISH_CALENDAR_DAY = `
+  mutation PublishCalendarDay($date: String!) {
+    publishCalendarDay(date: $date) {
+      ${CALENDAR_DAY_FIELDS}
+    }
+  }
+`;
+
+export const MUTATION_UNPUBLISH_CALENDAR_DAY = `
+  mutation UnpublishCalendarDay($date: String!) {
+    unpublishCalendarDay(date: $date) {
+      ${CALENDAR_DAY_FIELDS}
+    }
+  }
+`;
+
+export const MUTATION_SET_CALENDAR_DAY_CULTURE_MARKS = `
+  mutation SetCalendarDayCultureMarks(
+    $date: String!
+    $marks: [CalendarDayCultureMarkInput!]!
+  ) {
+    setCalendarDayCultureMarks(date: $date, marks: $marks) {
+      ${CALENDAR_DAY_FIELDS}
     }
   }
 `;
