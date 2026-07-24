@@ -9,7 +9,7 @@ import { createTaxonomyPrisma } from "./taxonomy-prisma-for-migration";
 
 async function resolveTaxonomyTagIdsByKeys(
   keys: string[],
-): Promise<Array<{ id: string }>> {
+): Promise<Array<{ id: string; key: string }>> {
   if (keys.length === 0) return [];
   const url = process.env.TAXONOMY_DATABASE_URL?.trim();
   if (!url) {
@@ -23,12 +23,15 @@ async function resolveTaxonomyTagIdsByKeys(
       where: { key: { in: keys } },
       select: { id: true, key: true },
     });
-    const found = new Set(tags.map(t => t.key));
-    const missing = keys.filter(key => !found.has(key));
+    const byKey = new Map(tags.map(t => [t.key, t]));
+    const missing = keys.filter(key => !byKey.has(key));
     if (missing.length > 0) {
       throw new Error(`taxonomy tag keys not found: ${missing.join(", ")}`);
     }
-    return tags.map(t => ({ id: t.id }));
+    return keys.map(key => {
+      const tag = byKey.get(key)!;
+      return { id: tag.id, key: tag.key };
+    });
   } finally {
     await taxonomy.$disconnect();
   }
@@ -537,6 +540,149 @@ const HOME_SECTIONS: Prisma.InputJsonValue = [
   },
 ];
 
+/** Public `/calendar` — moon | seasons + lunar howto (SITE-CAL-1 / BK-CONTENT-CAL-1). */
+const CALENDAR_SECTIONS: Prisma.InputJsonValue = [
+  {
+    type: "calendarIntro",
+    title: "Календарь",
+    subtitle:
+      "Лунный и сезонный календари для работ в саду. Выберите режим — подсказки и данные ниже.",
+    defaultMode: "moon",
+  },
+  {
+    type: "calendarMode",
+    mode: "moon",
+    label: "Лунный календарь",
+    descriptionMd:
+      "Фазы Луны и краткие подсказки по дням. Данные редактируются в админке (Контент → Календарь).",
+    data: {
+      year: 2026,
+      entries: [
+        {
+          date: "2026-07-21",
+          phase: "new",
+          note: "Пример записи — замените на актуальные фазы.",
+        },
+        {
+          date: "2026-08-05",
+          phase: "full",
+          note: "Полнолуние (пример).",
+        },
+      ],
+    },
+  },
+  {
+    type: "calendarMode",
+    mode: "seasons",
+    label: "Сезонный календарь",
+    descriptionMd:
+      "Окна сезонов и сезонные работы. Данные редактируются в админке.",
+    data: {
+      year: 2026,
+      seasons: [
+        {
+          id: "spring",
+          label: "Весна",
+          start: "2026-03-01",
+          end: "2026-05-31",
+          note: "Рассада, посадка, первые подкормки.",
+        },
+        {
+          id: "summer",
+          label: "Лето",
+          start: "2026-06-01",
+          end: "2026-08-31",
+          note: "Полив, формирование, сбор.",
+        },
+        {
+          id: "autumn",
+          label: "Осень",
+          start: "2026-09-01",
+          end: "2026-11-30",
+          note: "Уборка, закрутка, подготовка к зиме.",
+        },
+        {
+          id: "winter",
+          label: "Зима",
+          start: "2026-12-01",
+          end: "2027-02-28",
+          note: "Планирование сезона, семена, инвентарь.",
+        },
+      ],
+    },
+  },
+  {
+    type: "calendarLunarGuide",
+    title: "Как пользоваться лунным календарём",
+    subtitle: "Кратко о фазах, подкормках и знаках зодиака для посева.",
+    phases: [
+      {
+        id: "new",
+        label: "Новолуние",
+        imageSrc: "/calendar/moon-phase-new.svg",
+        body: "Худшее время для посадок: не сажайте и не пересаживайте. Неблагоприятны три дня — день до, новолуние и день после.",
+      },
+      {
+        id: "waxing",
+        label: "Растущая Луна",
+        imageSrc: "/calendar/moon-phase-waxing.svg",
+        body: "Соки тянутся вверх — лучшее время для надземных культур (зелень, травы, фрукты, овощи, цветы): посадка, пересадка, прививка.",
+      },
+      {
+        id: "full",
+        label: "Полнолуние",
+        imageSrc: "/calendar/moon-phase-full.svg",
+        body: "Один день без посадок и пересадок. Можно полоть, подкармливать и обрабатывать от вредителей.",
+      },
+      {
+        id: "waning",
+        label: "Убывающая Луна",
+        imageSrc: "/calendar/moon-phase-waning.svg",
+        body: "Энергия к корням — работайте с корнеплодами и луковичными.",
+      },
+    ],
+    tips: [
+      "Сажайте на рассвете или до обеда.",
+      "На растущей Луне — минеральные подкормки; на убывающей — органические.",
+    ],
+    zodiacGroups: [
+      {
+        id: "fertile",
+        label: "Плодородные",
+        signs: [
+          { symbol: "♋", name: "Рак" },
+          { symbol: "♉", name: "Телец" },
+          { symbol: "♏", name: "Скорпион" },
+          { symbol: "♓", name: "Рыбы" },
+        ],
+        body: "Лучшие дни для посева и посадки — всходы сильнее, урожай выше.",
+      },
+      {
+        id: "neutral",
+        label: "Нейтральные",
+        signs: [
+          { symbol: "♍", name: "Дева" },
+          { symbol: "♐", name: "Стрелец" },
+          { symbol: "♎", name: "Весы" },
+          { symbol: "♑", name: "Козерог" },
+        ],
+        body: "Сеять и сажать можно, урожай скорее средний.",
+      },
+      {
+        id: "barren",
+        label: "Неплодородные",
+        signs: [
+          { symbol: "♊", name: "Близнецы" },
+          { symbol: "♒", name: "Водолей" },
+          { symbol: "♌", name: "Лев" },
+          { symbol: "♈", name: "Овен" },
+        ],
+        body: "От посева лучше отказаться — полоть и делать другие огородные работы.",
+      },
+    ],
+  },
+];
+
 export async function seedSiteContent(
   prisma?: ContentMigrationPrisma,
 ) {
@@ -635,10 +781,200 @@ async function seedSiteContentInto(prisma: ContentMigrationPrisma) {
     },
   });
 
+  await prisma.sitePage.upsert({
+    where: { key: "calendar" },
+    update: {
+      title: "Календарь — SmartБотаник",
+      sections: CALENDAR_SECTIONS,
+      status: ContentStatus.PUBLISHED,
+      publishedAt: now,
+      seoTitle: "Календарь — SmartБотаник",
+      seoDescription:
+        "Лунный и сезонный календари SmartБотаник: фазы Луны и окна сезонов для работ в саду.",
+    },
+    create: {
+      key: "calendar",
+      title: "Календарь — SmartБотаник",
+      sections: CALENDAR_SECTIONS,
+      status: ContentStatus.PUBLISHED,
+      publishedAt: now,
+      seoTitle: "Календарь — SmartБотаник",
+      seoDescription:
+        "Лунный и сезонный календари SmartБотаник: фазы Луны и окна сезонов для работ в саду.",
+    },
+  });
+
+  // ADR-0021 sample days: generalState vs culture marks can diverge.
+  const cropTags = await resolveTaxonomyTagIdsByKeys([
+    "crop.tomato",
+    "crop.cucumber",
+  ]);
+  const tomatoId = cropTags.find(t => t.key === "crop.tomato")?.id;
+  const cucumberId = cropTags.find(t => t.key === "crop.cucumber")?.id;
+
+  const utcDate = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+  };
+
+  const sampleDays: Array<{
+    date: string;
+    title: string;
+    bodyMd: string;
+    moonPhase: string;
+    moonZodiacSign: string;
+    generalState: "GOOD" | "NEUTRAL" | "BAD";
+    marks: Array<{
+      taxonomyTagId: string;
+      activityKind: string;
+      favorability: string;
+      note?: string;
+    }>;
+  }> = [
+    {
+      date: "2026-07-21",
+      title: "Новолуние — общий спад",
+      bodyMd:
+        "День около новолуния: общий тон неблагоприятный, но по культурам картина разная.",
+      moonPhase: "new",
+      moonZodiacSign: "cancer",
+      generalState: "BAD",
+      marks: [
+        ...(tomatoId
+          ? [
+              {
+                taxonomyTagId: tomatoId,
+                activityKind: "LANDING",
+                favorability: "UNFAVORABLE",
+                note: "Не сажать томаты",
+              },
+              {
+                taxonomyTagId: tomatoId,
+                activityKind: "WATERING",
+                favorability: "NEUTRAL",
+                note: "Полив без акцента",
+              },
+            ]
+          : []),
+        ...(cucumberId
+          ? [
+              {
+                taxonomyTagId: cucumberId,
+                activityKind: "CARE",
+                favorability: "NEUTRAL",
+              },
+            ]
+          : []),
+      ],
+    },
+    {
+      date: "2026-07-23",
+      title: "Растущая — надземные культуры",
+      bodyMd: "Растущая Луна в плодородном знаке — хороший день для посадок надземных.",
+      moonPhase: "waxing",
+      moonZodiacSign: "taurus",
+      generalState: "GOOD",
+      marks: [
+        ...(tomatoId
+          ? [
+              {
+                taxonomyTagId: tomatoId,
+                activityKind: "LANDING",
+                favorability: "FAVORABLE",
+              },
+              {
+                taxonomyTagId: tomatoId,
+                activityKind: "NUTRIENTS",
+                favorability: "FAVORABLE",
+                note: "Минеральные подкормки",
+              },
+            ]
+          : []),
+        ...(cucumberId
+          ? [
+              {
+                taxonomyTagId: cucumberId,
+                activityKind: "LANDING",
+                favorability: "FAVORABLE",
+              },
+            ]
+          : []),
+      ],
+    },
+    {
+      date: "2026-08-05",
+      title: "Полнолуние",
+      bodyMd: "Полнолуние: без посадок; прополка и обработки ок.",
+      moonPhase: "full",
+      moonZodiacSign: "aquarius",
+      generalState: "NEUTRAL",
+      marks: [
+        ...(tomatoId
+          ? [
+              {
+                taxonomyTagId: tomatoId,
+                activityKind: "LANDING",
+                favorability: "UNFAVORABLE",
+              },
+              {
+                taxonomyTagId: tomatoId,
+                activityKind: "CARE",
+                favorability: "FAVORABLE",
+                note: "Прополка / вредители",
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
+
+  let calendarDays = 0;
+  for (const sample of sampleDays) {
+    const date = utcDate(sample.date);
+    const day = await prisma.calendarDay.upsert({
+      where: { date },
+      update: {
+        title: sample.title,
+        bodyMd: sample.bodyMd,
+        moonPhase: sample.moonPhase,
+        moonZodiacSign: sample.moonZodiacSign,
+        generalState: sample.generalState,
+        status: ContentStatus.PUBLISHED,
+        publishedAt: now,
+      },
+      create: {
+        date,
+        title: sample.title,
+        bodyMd: sample.bodyMd,
+        moonPhase: sample.moonPhase,
+        moonZodiacSign: sample.moonZodiacSign,
+        generalState: sample.generalState,
+        status: ContentStatus.PUBLISHED,
+        publishedAt: now,
+      },
+    });
+    await prisma.calendarDayCultureMark.deleteMany({
+      where: { calendarDayId: day.id },
+    });
+    if (sample.marks.length > 0) {
+      await prisma.calendarDayCultureMark.createMany({
+        data: sample.marks.map(mark => ({
+          calendarDayId: day.id,
+          taxonomyTagId: mark.taxonomyTagId,
+          activityKind: mark.activityKind,
+          favorability: mark.favorability,
+          note: mark.note ?? null,
+        })),
+      });
+    }
+    calendarDays += 1;
+  }
+
   return {
     guides: ALL_SEED_GUIDES.length,
     launchGuides: LAUNCH_GUIDES.length,
-    sitePages: 1,
+    sitePages: 2,
+    calendarDays,
     status: ContentStatus.PUBLISHED,
   };
 }

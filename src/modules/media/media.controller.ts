@@ -12,6 +12,7 @@ import {
   Put,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { MediaRemoteHttpClient } from "./media-remote.http-client";
 import { MediaService } from "./media.service";
 import type { MediaListParams } from "./media.types";
 
@@ -25,7 +26,10 @@ type UploadedFilePayload = {
 
 @Controller("media")
 export class MediaController {
-  constructor(private readonly mediaService: MediaService) {}
+  constructor(
+    private readonly mediaService: MediaService,
+    private readonly mediaHttp: MediaRemoteHttpClient,
+  ) {}
 
   private parseJsonField<T>(raw: unknown, fieldName: string): T | undefined {
     if (raw === undefined || raw === null || raw === "") {
@@ -331,8 +335,114 @@ export class MediaController {
   @Put("admin/media/:id")
   async adminUpdate(
     @Param("id") id: string,
-    @Body() body: { width?: number; height?: number },
+    @Body()
+    body: {
+      width?: number;
+      height?: number;
+      kind?: "IMAGE" | "VIDEO";
+      posterMediaId?: string | null;
+    },
   ) {
     return this.mediaService.updateMediaMetadata(id, body);
+  }
+
+  // --- Galleries / entries (ADR-0019) — proxy to media-service ---
+
+  @Get("admin/galleries")
+  adminListGalleries(@Query() query: Record<string, string>) {
+    const q = new URLSearchParams(query).toString();
+    return this.mediaHttp.requestJson(
+      "GET",
+      `/media/admin/galleries${q ? `?${q}` : ""}`,
+    );
+  }
+
+  @Post("admin/galleries")
+  adminCreateGallery(@Body() body: unknown) {
+    return this.mediaHttp.requestJson("POST", "/media/admin/galleries", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+  }
+
+  @Get("admin/galleries/:id")
+  adminGetGallery(@Param("id") id: string) {
+    return this.mediaHttp.requestJson(
+      "GET",
+      `/media/admin/galleries/${encodeURIComponent(id)}`,
+    );
+  }
+
+  @Put("admin/galleries/:id")
+  adminUpdateGallery(@Param("id") id: string, @Body() body: unknown) {
+    return this.mediaHttp.requestJson(
+      "PUT",
+      `/media/admin/galleries/${encodeURIComponent(id)}`,
+      {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body ?? {}),
+      },
+    );
+  }
+
+  @Delete("admin/galleries/:id")
+  adminDeleteGallery(@Param("id") id: string) {
+    return this.mediaHttp.requestJson(
+      "DELETE",
+      `/media/admin/galleries/${encodeURIComponent(id)}`,
+    );
+  }
+
+  @Get("galleries/:id")
+  getPublishedGallery(@Param("id") id: string) {
+    return this.mediaHttp.requestJson(
+      "GET",
+      `/media/galleries/${encodeURIComponent(id)}`,
+    );
+  }
+
+  @Get("admin/entries")
+  adminListEntries(@Query() query: Record<string, string>) {
+    const q = new URLSearchParams(query).toString();
+    return this.mediaHttp.requestJson(
+      "GET",
+      `/media/admin/entries${q ? `?${q}` : ""}`,
+    );
+  }
+
+  @Post("admin/entries")
+  adminCreateEntry(@Body() body: unknown) {
+    return this.mediaHttp.requestJson("POST", "/media/admin/entries", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+  }
+
+  @Get("admin/entries/:id")
+  adminGetEntry(@Param("id") id: string) {
+    return this.mediaHttp.requestJson(
+      "GET",
+      `/media/admin/entries/${encodeURIComponent(id)}`,
+    );
+  }
+
+  @Put("admin/entries/:id")
+  adminUpdateEntry(@Param("id") id: string, @Body() body: unknown) {
+    return this.mediaHttp.requestJson(
+      "PUT",
+      `/media/admin/entries/${encodeURIComponent(id)}`,
+      {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body ?? {}),
+      },
+    );
+  }
+
+  @Delete("admin/entries/:id")
+  adminDeleteEntry(@Param("id") id: string) {
+    return this.mediaHttp.requestJson(
+      "DELETE",
+      `/media/admin/entries/${encodeURIComponent(id)}`,
+    );
   }
 }

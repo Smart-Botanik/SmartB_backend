@@ -107,7 +107,12 @@ export class MediaRemoteService extends MediaService {
 
   async updateMediaMetadata(
     id: string,
-    metadata: Partial<{ width: number; height: number }>,
+    metadata: Partial<{
+      width: number;
+      height: number;
+      kind: "IMAGE" | "VIDEO";
+      posterMediaId: string | null;
+    }>,
   ): Promise<MediaRecord> {
     return this.http.requestJson<MediaRecord>(
       "PUT",

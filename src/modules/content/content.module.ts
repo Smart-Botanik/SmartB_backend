@@ -2,25 +2,28 @@ import {
   Module,
   OnModuleInit,
   ServiceUnavailableException,
+  forwardRef,
 } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { MediaModule } from "../media/media.module";
 import { ContentRemoteGraphqlClient } from "./content-remote.graphql-client";
 import { ContentRemoteService } from "./content.remote-service";
+import { CalendarResolver } from "./calendar.resolver";
 import { CropGuideResolver, SitePageResolver } from "./content.resolver";
 import { ContentService } from "./content.service";
 
 /**
- * Bounded context: CropGuide + SitePage — remote-only after BK-MS-CONTENT cutover.
+ * Bounded context: CropGuide + SitePage + CalendarDay — remote-only after BK-MS-CONTENT cutover.
  */
 @Module({
-  imports: [ConfigModule, MediaModule],
+  imports: [ConfigModule, forwardRef(() => MediaModule)],
   providers: [
     ContentRemoteGraphqlClient,
     ContentRemoteService,
     { provide: ContentService, useClass: ContentRemoteService },
     CropGuideResolver,
     SitePageResolver,
+    CalendarResolver,
   ],
   exports: [ContentService, ContentRemoteGraphqlClient],
 })

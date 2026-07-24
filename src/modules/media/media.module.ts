@@ -5,9 +5,12 @@ import {
   OnModuleInit,
   RequestMethod,
   ServiceUnavailableException,
+  forwardRef,
 } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ContentModule } from "../content/content.module";
 import { MediaController } from "./media.controller";
+import { MediaGalleryResolver } from "./media-gallery.resolver";
 import { MediaRemoteHttpClient } from "./media-remote.http-client";
 import { MediaRemoteService } from "./media.remote-service";
 import { MediaService } from "./media.service";
@@ -17,13 +20,14 @@ import { MediaUploadsProxyMiddleware } from "./media-uploads-proxy.middleware";
  * Bounded context: Media — remote-only after ADR-0018 cutover.
  */
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, forwardRef(() => ContentModule)],
   controllers: [MediaController],
   providers: [
     MediaRemoteHttpClient,
     MediaRemoteService,
     { provide: MediaService, useClass: MediaRemoteService },
     MediaUploadsProxyMiddleware,
+    MediaGalleryResolver,
   ],
   exports: [MediaService, MediaRemoteService, MediaRemoteHttpClient],
 })

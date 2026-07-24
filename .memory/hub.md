@@ -20,6 +20,7 @@
 |---|-----|------|------|
 | 1 | BK-STAB-1 | BFF stabilization / continuous | [BK-STAB-1](./tasks/cards/BK-STAB-1.md) |
 | 2 | BK-MS-MEDIA-2 | Media service extract + cutover | [BK-MS-MEDIA-2](./tasks/cards/BK-MS-MEDIA-2.md) |
+| 3 | BK-MS-GALLERY-1 | Galleries + MediaEntry in media-service | [BK-MS-GALLERY-1](../../memory/tasks/cards/BK-MS-GALLERY-1.md) |
 
 Platform WIP (другие apps): `../../memory/hub.md` — не дублировать здесь.
 
@@ -29,6 +30,9 @@ Platform WIP (другие apps): `../../memory/hub.md` — не дублиро�
 
 | Дата | Суть |
 |------|------|
+| 2026-07-24 | Taxonomy starting seed → `services/taxonomy` snapshot (46 tags) |
+| 2026-07-24 | Culture facets starting seed — 8 LOGO PNGs + tomato PREVIEW/IMAGE_M in assets |
+| 2026-07-22 | BK-CF-CHIP-PNG-1 — culture chip LOGO PNG over emoji |
 | 2026-07-19 | BK-CF-REMOTE-1 — facet miss → null (не 503) |
 | 2026-07-15 | `.memory/` pilot — cards + active, без kanban |
 

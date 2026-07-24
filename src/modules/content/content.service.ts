@@ -85,4 +85,54 @@ export abstract class ContentService {
   abstract publishSitePage(key: string): Promise<unknown>;
 
   abstract unpublishSitePage(key: string): Promise<unknown>;
+
+  abstract listPublishedCalendarDays(params: {
+    from: string;
+    to: string;
+    taxonomyTagIds?: string[] | null;
+    activityKind?: string | null;
+  }): Promise<unknown[]>;
+
+  abstract getPublishedCalendarDay(date: string): Promise<unknown>;
+
+  abstract listCalendarDays(params: {
+    from: string;
+    to: string;
+    status?: ContentStatus | null;
+    taxonomyTagIds?: string[] | null;
+    activityKind?: string | null;
+  }): Promise<unknown[]>;
+
+  abstract getCalendarDay(date: string): Promise<unknown>;
+
+  abstract upsertCalendarDay(params: {
+    date: string;
+    title?: string | null;
+    bodyMd?: string | null;
+    moonPhase?: string | null;
+    moonZodiacSign?: string | null;
+    generalState?: string | null;
+    metaJson?: string | null;
+    status?: ContentStatus | null;
+    cultureMarks?: Array<{
+      taxonomyTagId: string;
+      activityKind: string;
+      favorability: string;
+      note?: string | null;
+    }> | null;
+  }): Promise<unknown>;
+
+  abstract publishCalendarDay(date: string): Promise<unknown>;
+
+  abstract unpublishCalendarDay(date: string): Promise<unknown>;
+
+  abstract setCalendarDayCultureMarks(
+    date: string,
+    marks: Array<{
+      taxonomyTagId: string;
+      activityKind: string;
+      favorability: string;
+      note?: string | null;
+    }>,
+  ): Promise<unknown>;
 }

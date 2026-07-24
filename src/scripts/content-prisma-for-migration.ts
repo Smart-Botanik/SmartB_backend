@@ -88,6 +88,24 @@ export type ContentMigrationPrisma = {
     }) => Promise<unknown>;
     count: () => Promise<number>;
   };
+  calendarDay: {
+    upsert: (args: {
+      where: { date: Date };
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    }) => Promise<{ id: string; date: Date; [key: string]: unknown }>;
+    findUnique: (args: {
+      where: { date: Date };
+    }) => Promise<{ id: string; date: Date; [key: string]: unknown } | null>;
+  };
+  calendarDayCultureMark: {
+    deleteMany: (args: {
+      where: Record<string, unknown>;
+    }) => Promise<unknown>;
+    createMany: (args: {
+      data: Array<Record<string, unknown>>;
+    }) => Promise<unknown>;
+  };
   $executeRaw: PrismaClient["$executeRaw"];
   $queryRaw: PrismaClient["$queryRaw"];
   $disconnect: () => Promise<void>;

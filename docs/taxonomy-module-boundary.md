@@ -35,8 +35,9 @@ Do **not** import `TaxonomyRepository` outside taxonomy module except scripts/te
 
 | Path | Reason |
 |------|--------|
-| `src/scripts/seed-taxonomy-tags.ts` | Idempotent seed; may use Prisma upsert directly until migrated to service |
-| `prisma/seed.ts` | Orchestration |
+| `src/scripts/seed-taxonomy-tags.ts` | Guide slug → tag **keys** map for site-content seed only (not tag catalog) |
+| `services/taxonomy` `npm run db:seed` | **Canonical** starting catalog (`prisma/seed-data/starting-taxonomy.v1.json`) |
+| `prisma/seed.ts` | Orchestration (grow_db); does not own TaxonomyTag rows under cutover |
 
 ## GraphQL surface (unchanged for clients)
 

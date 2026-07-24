@@ -36,6 +36,8 @@ export type MediaRecord = {
   size?: number | null;
   width?: number | null;
   height?: number | null;
+  kind?: "IMAGE" | "VIDEO";
+  posterMediaId?: string | null;
   key?: string;
   provider?: string;
   bucket?: string;

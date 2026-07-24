@@ -15,43 +15,74 @@ const CULTURE_HUB_LEADS: Record<string, string> = {
   "crop.tomato":
     "Томаты — от рассады до урожая: свет, полив, подкормки и частые ошибки в теплице и грунте.",
   "crop.pepper": "Сладкий и острый перец: температура, пикировка и стабильный завязь.",
-  "crop.cucumber": "Огурцы в теплице и на грядке: шпалера, полив и защита от болезней.",
+  "crop.cucumber":
+    "Огурцы в теплице и на грядке: шпалера, полив и защита от болезней.",
   "crop.potato": "Картофель: посадка, окучивание и хранение урожая без потерь.",
   "crop.cabbage": "Капуста: сроки посева, капуста в открытом грунте и защита от вредителей.",
+  "crop.pumpkin": "Тыква: посев, место на грядке и хранение крупных плодов.",
   "crop.zucchini": "Кабачки: компактный урожай, полив и сбор молодых плодов.",
   "crop.eggplant": "Баклажаны: теплолюбивая культура — свет, почва и пасынкование.",
 };
 
-const CULTURE_FACET_MEDIA_EXT = "jpg";
-const CULTURE_FACET_MEDIA_MIME = "image/jpeg";
+/** Extended presentation TEXT for tomato + cucumber hubs. */
+const CULTURE_PRESENTATION_TEXT: Record<
+  string,
+  {
+    hubTitle: string;
+    aboutShort: string;
+    seoDescription: string;
+  }
+> = {
+  "crop.tomato": {
+    hubTitle: "Томаты",
+    aboutShort:
+      "Томат — одна из самых популярных культур у дачников: от компактных детерминантных сортов для грунта до индетерминантных лиан в теплице. Здесь собраны обзорные гайды и узкие статьи по свету, поливу, подкормкам, формировке и типичным ошибкам. Выберите фильтр по типу куста или теме, чтобы быстрее найти нужный материал.",
+    seoDescription:
+      "Руководства по выращиванию томатов: рассада, теплица и открытый грунт, полив, подкормки и частые ошибки.",
+  },
+  "crop.cucumber": {
+    hubTitle: "Огурцы",
+    aboutShort:
+      "Огурец отзывчив к теплу, влаге и опоре: в теплице и на шпалере проще держать урожай чистым и регулярным. На этой странице — обзорные материалы и практические гайды по поливу, подкормкам, защите от болезней и выбору способа выращивания. Отфильтруйте статьи по теме, чтобы сразу перейти к нужному этапу.",
+    seoDescription:
+      "Руководства по выращиванию огурцов: теплица и грядка, шпалера, полив, защита от болезней.",
+  },
+};
 
-function cultureFacetMediaKey(
-  cropKey: string,
-  slot: "image-m" | "preview",
-): string {
+type CultureMediaSlot = "logo" | "image-m" | "preview";
+
+const CULTURE_MEDIA_SLOT_META: Record<
+  CultureMediaSlot,
+  { kind: "LOGO" | "IMAGE_M" | "PREVIEW"; mime: string; ext: string }
+> = {
+  logo: { kind: "LOGO", mime: "image/png", ext: "png" },
+  "image-m": { kind: "IMAGE_M", mime: "image/jpeg", ext: "jpg" },
+  preview: { kind: "PREVIEW", mime: "image/jpeg", ext: "jpg" },
+};
+
+function cultureFacetMediaKey(cropKey: string, slot: CultureMediaSlot): string {
   const slug = cropKey.replace(/^crop\./, "");
-  return `content-facets/culture/${slug}/${slot}.${CULTURE_FACET_MEDIA_EXT}`;
+  const { ext } = CULTURE_MEDIA_SLOT_META[slot];
+  return `content-facets/culture/${slug}/${slot}.${ext}`;
 }
 
-function cultureFacetAssetPath(
-  cropKey: string,
-  slot: "image-m" | "preview",
-): string {
+function cultureFacetAssetPath(cropKey: string, slot: CultureMediaSlot): string {
   const slug = cropKey.replace(/^crop\./, "");
+  const { ext } = CULTURE_MEDIA_SLOT_META[slot];
   return path.join(
     process.cwd(),
     "assets",
     "content-facets",
     "culture",
     slug,
-    `${slot}.${CULTURE_FACET_MEDIA_EXT}`,
+    `${slot}.${ext}`,
   );
 }
 
 /** Copy committed fixture into gitignored uploads/ when present. */
 async function syncCultureFacetAssetFile(
   cropKey: string,
-  slot: "image-m" | "preview",
+  slot: CultureMediaSlot,
 ): Promise<{ size: number } | null> {
   const key = cultureFacetMediaKey(cropKey, slot);
   const assetPath = cultureFacetAssetPath(cropKey, slot);
@@ -71,19 +102,38 @@ async function syncCultureFacetAssetFile(
   return { size: st.size };
 }
 
-/** Upload culture facet asset into media-service (ADR-0018). */
+async function findExistingMediaIdByKey(
+  baseUrl: string,
+  internalKey: string,
+  key: string,
+): Promise<string | null> {
+  const listRes = await fetch(
+    `${baseUrl}/media/admin/media?search=${encodeURIComponent(key)}&limit=5`,
+    { headers: { "X-Media-Internal-Key": internalKey } },
+  );
+  if (!listRes.ok) return null;
+  const list = (await listRes.json()) as {
+    media?: Array<{ id: string; key?: string }>;
+  };
+  const hit = list.media?.find((m) => m.key === key || m.key?.endsWith(key));
+  return hit?.id ?? null;
+}
+
+/**
+ * Upload culture facet asset into media-service (ADR-0018).
+ * Returns null when fixture is absent (optional slots).
+ */
 async function ensureCultureFacetMedia(
-  _prisma: PrismaClient,
   cropKey: string,
-  slot: "image-m" | "preview",
-): Promise<string> {
+  slot: CultureMediaSlot,
+  opts: { required: boolean },
+): Promise<string | null> {
   const key = cultureFacetMediaKey(cropKey, slot);
-  const width = slot === "image-m" ? 640 : 320;
-  const height = slot === "image-m" ? 360 : 320;
+  const { mime } = CULTURE_MEDIA_SLOT_META[slot];
   const assetPath = cultureFacetAssetPath(cropKey, slot);
 
   const baseUrl = (
-    process.env.MEDIA_SERVICE_URL?.trim() || "http://localhost:3015"
+    process.env.MEDIA_SERVICE_URL?.trim() || "http://localhost:3016"
   ).replace(/\/$/, "");
   const internalKey =
     process.env.MEDIA_SERVICE_INTERNAL_KEY?.trim() || "dev-media-internal";
@@ -92,25 +142,18 @@ async function ensureCultureFacetMedia(
   try {
     fileBuffer = await fs.readFile(assetPath);
   } catch {
-    // No fixture file — create a 1x1 jpeg placeholder is out of scope; skip upload
+    fileBuffer = null;
   }
 
   if (!fileBuffer) {
-    // List existing by search on key path
-    const listRes = await fetch(
-      `${baseUrl}/media/admin/media?search=${encodeURIComponent(key)}&limit=1`,
-      { headers: { "X-Media-Internal-Key": internalKey } },
-    );
-    if (listRes.ok) {
-      const list = (await listRes.json()) as {
-        media?: Array<{ id: string; key?: string }>;
-      };
-      const hit = list.media?.find((m) => m.key === key || m.key?.endsWith(key));
-      if (hit) return hit.id;
+    const existing = await findExistingMediaIdByKey(baseUrl, internalKey, key);
+    if (existing) return existing;
+    if (opts.required) {
+      throw new Error(
+        `Culture facet asset missing and no media row for key=${key} (${assetPath})`,
+      );
     }
-    throw new Error(
-      `Culture facet asset missing and no media row for key=${key} (${assetPath})`,
-    );
+    return null;
   }
 
   await syncCultureFacetAssetFile(cropKey, slot);
@@ -118,7 +161,7 @@ async function ensureCultureFacetMedia(
   const form = new FormData();
   form.append(
     "file",
-    new Blob([new Uint8Array(fileBuffer)], { type: CULTURE_FACET_MEDIA_MIME }),
+    new Blob([new Uint8Array(fileBuffer)], { type: mime }),
     path.basename(key),
   );
   form.append("folder", path.dirname(key).replace(/\\/g, "/"));
@@ -136,8 +179,6 @@ async function ensureCultureFacetMedia(
     );
   }
   const created = (await uploadRes.json()) as { id: string };
-  void width;
-  void height;
   return created.id;
 }
 
@@ -151,7 +192,7 @@ export async function seedCultureFacets(params: {
     key: string;
   }>;
 
-  const tagByKey = new Map(tags.map(tag => [tag.key, tag]));
+  const tagByKey = new Map(tags.map((tag) => [tag.key, tag]));
   let published = 0;
 
   for (const key of CROP_ROOT_KEYS) {
@@ -164,16 +205,88 @@ export async function seedCultureFacets(params: {
     const emoji = CULTURE_CHIP_EMOJI_SEED[key];
     const hubLead =
       CULTURE_HUB_LEADS[key] ?? `Гайды и материалы по культуре ${key}.`;
-    const imageMMediaId = await ensureCultureFacetMedia(
-      params.prisma,
-      key,
-      "image-m",
-    );
-    const previewMediaId = await ensureCultureFacetMedia(
-      params.prisma,
-      key,
-      "preview",
-    );
+    const presentation = CULTURE_PRESENTATION_TEXT[key];
+
+    // LOGO is the production chip icon (PNG). Required for all crop roots in seed.
+    const logoMediaId = await ensureCultureFacetMedia(key, "logo", {
+      required: true,
+    });
+    // Photoreal slots — optional until fixtures exist for every crop.
+    const imageMMediaId = await ensureCultureFacetMedia(key, "image-m", {
+      required: false,
+    });
+    const previewMediaId = await ensureCultureFacetMedia(key, "preview", {
+      required: false,
+    });
+
+    const textSlots: Array<{
+      kind: "TEXT";
+      role: string;
+      textValue: string;
+      sortOrder: number;
+    }> = [
+      {
+        kind: "TEXT",
+        role: CONTENT_FACET_TEXT_ROLES.CHIP_ICON,
+        textValue: emoji,
+        sortOrder: 0,
+      },
+      {
+        kind: "TEXT",
+        role: CONTENT_FACET_TEXT_ROLES.HUB_LEAD,
+        textValue: hubLead,
+        sortOrder: 2,
+      },
+    ];
+
+    if (presentation) {
+      textSlots.push(
+        {
+          kind: "TEXT",
+          role: CONTENT_FACET_TEXT_ROLES.HUB_TITLE,
+          textValue: presentation.hubTitle,
+          sortOrder: 1,
+        },
+        {
+          kind: "TEXT",
+          role: CONTENT_FACET_TEXT_ROLES.ABOUT_SHORT,
+          textValue: presentation.aboutShort,
+          sortOrder: 3,
+        },
+        {
+          kind: "TEXT",
+          role: CONTENT_FACET_TEXT_ROLES.SEO_DESCRIPTION,
+          textValue: presentation.seoDescription,
+          sortOrder: 4,
+        },
+      );
+    }
+
+    const mediaSlots: Array<{
+      kind: "LOGO" | "IMAGE_M" | "PREVIEW";
+      mediaId: string;
+      sortOrder: number;
+    }> = [
+      {
+        kind: "LOGO",
+        mediaId: logoMediaId!,
+        sortOrder: 5,
+      },
+    ];
+    if (imageMMediaId) {
+      mediaSlots.push({
+        kind: "IMAGE_M",
+        mediaId: imageMMediaId,
+        sortOrder: 6,
+      });
+    }
+    if (previewMediaId) {
+      mediaSlots.push({
+        kind: "PREVIEW",
+        mediaId: previewMediaId,
+        sortOrder: 7,
+      });
+    }
 
     await params.contentFacetsService.upsertProfile({
       subject: {
@@ -182,30 +295,7 @@ export async function seedCultureFacets(params: {
         key,
       },
       profileKind: "culture_tag",
-      slots: [
-        {
-          kind: "TEXT",
-          role: CONTENT_FACET_TEXT_ROLES.CHIP_ICON,
-          textValue: emoji,
-          sortOrder: 0,
-        },
-        {
-          kind: "TEXT",
-          role: CONTENT_FACET_TEXT_ROLES.HUB_LEAD,
-          textValue: hubLead,
-          sortOrder: 1,
-        },
-        {
-          kind: "IMAGE_M",
-          mediaId: imageMMediaId,
-          sortOrder: 2,
-        },
-        {
-          kind: "PREVIEW",
-          mediaId: previewMediaId,
-          sortOrder: 3,
-        },
-      ],
+      slots: [...textSlots, ...mediaSlots],
     });
 
     await params.contentFacetsService.publishProfile({
@@ -215,6 +305,12 @@ export async function seedCultureFacets(params: {
     });
 
     published += 1;
+    console.log(
+      `[seed-culture-facets] ${key}: LOGO` +
+        (imageMMediaId ? "+IMAGE_M" : "") +
+        (previewMediaId ? "+PREVIEW" : "") +
+        " published",
+    );
   }
 
   return { published };

@@ -2,6 +2,7 @@ import {
   Injectable,
   ServiceUnavailableException,
   BadRequestException,
+  NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
@@ -54,6 +55,9 @@ export class MediaRemoteHttpClient {
       const text = await response.text().catch(() => "");
       if (response.status === 400) {
         throw new BadRequestException(text || `Media service HTTP 400`);
+      }
+      if (response.status === 404) {
+        throw new NotFoundException(text || `Media not found`);
       }
       throw new ServiceUnavailableException(
         `Media service HTTP ${response.status}${text ? `: ${text}` : ""}`,

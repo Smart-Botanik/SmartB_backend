@@ -3,6 +3,20 @@
 > Локальный лог `backend_nest/`. **Не** копия platform `memory/project/history.md`.  
 > Шаблон: date · role · change · impact · reason.
 
+## 2026-07-24 — Culture facets starting seed + LOGO assets ([Backend])
+
+**Role**: Backend  
+**Change**: Exported live culture LOGO PNGs (8 crops incl. pumpkin) + tomato PREVIEW/IMAGE_M into `assets/content-facets/culture/*/`; updated `seed-culture-facets` (LOGO required, photoreal optional); `CULTURE_CHIP_EMOJI_SEED` + pumpkin.  
+**Impact**: `npm run db:seed:culture-facets` restores production-ready culture_tag profiles with chip PNGs.  
+**Reason**: Freeze current good facet starting data for future / prod bootstrap.
+
+## 2026-07-24 — Taxonomy starting seed lives in taxonomy-service ([Backend])
+
+**Role**: Backend  
+**Change**: Live taxonomy snapshot → `services/taxonomy/prisma/seed-data/starting-taxonomy.v1.json` (4 scopes, 46 tags); `db:seed` loads it; `db:export-starting-seed` refreshes.  
+**Impact**: Taxonomy env bootstraps independently of Nest (deploy-friendly).  
+**Reason**: Per-service starting data ownership.
+
 ## 2026-07-23 — Social path: nest = app only ([Architect] · [Backend])
 
 **Role**: Architect · Backend  

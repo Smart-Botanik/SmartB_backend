@@ -13,5 +13,5 @@
 - [x] Replace `prisma.media` in GraphQL stitch / seeds / content-facets
   - 2026-07-20: facets `loadMediaMap` / `resolveSlotMedia` → `MediaService`; typed `MediaRecord` (no `unknown` on controller)
 - [ ] Drop `Media` from monolith Prisma after verify (schema removed; db push optional)
-- [ ] Smoke: media-service :3015 + upload via BFF
+- [ ] Smoke: media-service :3016 + upload via BFF
 - [ ] Seeds still calling `prisma.media` (`seed-culture-facets.js`, e2e) — migrate to media-service API

@@ -40,7 +40,12 @@ export abstract class MediaService {
 
   abstract updateMediaMetadata(
     id: string,
-    metadata: Partial<{ width: number; height: number }>,
+    metadata: Partial<{
+      width: number;
+      height: number;
+      kind: "IMAGE" | "VIDEO";
+      posterMediaId: string | null;
+    }>,
   ): Promise<MediaRecord>;
 
   abstract getMediaStats(): Promise<MediaStats>;

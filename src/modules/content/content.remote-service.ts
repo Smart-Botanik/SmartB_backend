@@ -10,15 +10,23 @@ import { ContentRemoteGraphqlClient } from "./content-remote.graphql-client";
 import {
   MUTATION_CREATE_CROP_GUIDE,
   MUTATION_DELETE_CROP_GUIDE,
+  MUTATION_PUBLISH_CALENDAR_DAY,
   MUTATION_PUBLISH_CROP_GUIDE,
   MUTATION_PUBLISH_SITE_PAGE,
+  MUTATION_SET_CALENDAR_DAY_CULTURE_MARKS,
+  MUTATION_UNPUBLISH_CALENDAR_DAY,
   MUTATION_UNPUBLISH_CROP_GUIDE,
   MUTATION_UNPUBLISH_SITE_PAGE,
   MUTATION_UPDATE_CROP_GUIDE,
+  MUTATION_UPSERT_CALENDAR_DAY,
   MUTATION_UPSERT_SITE_PAGE,
+  QUERY_CALENDAR_DAY,
+  QUERY_CALENDAR_DAYS,
   QUERY_CROP_GUIDE,
   QUERY_CROP_GUIDE_BY_SLUG,
   QUERY_CROP_GUIDES,
+  QUERY_PUBLISHED_CALENDAR_DAY,
+  QUERY_PUBLISHED_CALENDAR_DAYS,
   QUERY_PUBLISHED_CROP_GUIDE,
   QUERY_PUBLISHED_CROP_GUIDES,
   QUERY_PUBLISHED_SITE_PAGE,
@@ -261,5 +269,118 @@ export class ContentRemoteService extends ContentService {
       { key },
     );
     return data.unpublishSitePage;
+  }
+
+  async listPublishedCalendarDays(params: {
+    from: string;
+    to: string;
+    taxonomyTagIds?: string[] | null;
+    activityKind?: string | null;
+  }) {
+    const data = await this.remote.execute<{ publishedCalendarDays: unknown[] }>(
+      QUERY_PUBLISHED_CALENDAR_DAYS,
+      {
+        from: params.from,
+        to: params.to,
+        taxonomyTagIds: params.taxonomyTagIds ?? undefined,
+        activityKind: params.activityKind ?? undefined,
+      },
+    );
+    return data.publishedCalendarDays;
+  }
+
+  async getPublishedCalendarDay(date: string) {
+    const data = await this.remote.execute<{
+      publishedCalendarDay: unknown | null;
+    }>(QUERY_PUBLISHED_CALENDAR_DAY, { date });
+    if (!data.publishedCalendarDay) {
+      throw new NotFoundException("Published CalendarDay not found");
+    }
+    return data.publishedCalendarDay;
+  }
+
+  async listCalendarDays(params: {
+    from: string;
+    to: string;
+    status?: ContentStatus | null;
+    taxonomyTagIds?: string[] | null;
+    activityKind?: string | null;
+  }) {
+    const data = await this.remote.execute<{ calendarDays: unknown[] }>(
+      QUERY_CALENDAR_DAYS,
+      {
+        from: params.from,
+        to: params.to,
+        status: params.status ?? undefined,
+        taxonomyTagIds: params.taxonomyTagIds ?? undefined,
+        activityKind: params.activityKind ?? undefined,
+      },
+    );
+    return data.calendarDays;
+  }
+
+  async getCalendarDay(date: string) {
+    const data = await this.remote.execute<{ calendarDay: unknown | null }>(
+      QUERY_CALENDAR_DAY,
+      { date },
+    );
+    if (!data.calendarDay) {
+      throw new NotFoundException("CalendarDay not found");
+    }
+    return data.calendarDay;
+  }
+
+  async upsertCalendarDay(params: {
+    date: string;
+    title?: string | null;
+    bodyMd?: string | null;
+    moonPhase?: string | null;
+    moonZodiacSign?: string | null;
+    generalState?: string | null;
+    metaJson?: string | null;
+    status?: ContentStatus | null;
+    cultureMarks?: Array<{
+      taxonomyTagId: string;
+      activityKind: string;
+      favorability: string;
+      note?: string | null;
+    }> | null;
+  }) {
+    const data = await this.remote.execute<{ upsertCalendarDay: unknown }>(
+      MUTATION_UPSERT_CALENDAR_DAY,
+      { input: params },
+    );
+    return data.upsertCalendarDay;
+  }
+
+  async publishCalendarDay(date: string) {
+    const data = await this.remote.execute<{ publishCalendarDay: unknown }>(
+      MUTATION_PUBLISH_CALENDAR_DAY,
+      { date },
+    );
+    return data.publishCalendarDay;
+  }
+
+  async unpublishCalendarDay(date: string) {
+    const data = await this.remote.execute<{ unpublishCalendarDay: unknown }>(
+      MUTATION_UNPUBLISH_CALENDAR_DAY,
+      { date },
+    );
+    return data.unpublishCalendarDay;
+  }
+
+  async setCalendarDayCultureMarks(
+    date: string,
+    marks: Array<{
+      taxonomyTagId: string;
+      activityKind: string;
+      favorability: string;
+      note?: string | null;
+    }>,
+  ) {
+    const data = await this.remote.execute<{
+      setCalendarDayCultureMarks: unknown;
+    }>(MUTATION_SET_CALENDAR_DAY_CULTURE_MARKS, { date, marks });
+    return data.setCalendarDayCultureMarks;
   }
 }
