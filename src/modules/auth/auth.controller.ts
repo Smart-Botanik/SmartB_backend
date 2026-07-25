@@ -7,6 +7,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Headers,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -16,14 +17,15 @@ import {
   ApiCreatedResponse,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { AuthService } from "./auth.service";
+import { AuthFacade } from "./auth.facade";
 import { LoginDto } from "./dto/login.dto";
+import { RefreshDto } from "./dto/refresh.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
-import { UsersService } from "../users/users.service";
 
 class AuthUserResponseDto {
   jwt!: string;
+  refreshToken?: string;
 
   user!: {
     id: string;
@@ -44,16 +46,13 @@ class MeResponseDto {
 @ApiTags("auth")
 @Controller("auth")
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly usersService: UsersService,
-  ) {}
+  constructor(private readonly authFacade: AuthFacade) {}
 
   @ApiOperation({ summary: "Register a new user" })
   @ApiCreatedResponse({ type: AuthUserResponseDto })
   @Post("register")
   register(@Body() dto: RegisterDto) {
-    return this.authService.register({
+    return this.authFacade.register({
       email: dto.email,
       username: dto.username,
       password: dto.password,
@@ -64,10 +63,18 @@ export class AuthController {
   @ApiCreatedResponse({ type: AuthUserResponseDto })
   @Post("login")
   login(@Body() dto: LoginDto) {
-    return this.authService.login({
+    return this.authFacade.login({
       identifier: dto.identifier,
       password: dto.password,
     });
+  }
+
+  @ApiOperation({ summary: "Refresh access token" })
+  @ApiOkResponse({ type: AuthUserResponseDto })
+  @HttpCode(HttpStatus.OK)
+  @Post("refresh")
+  refresh(@Body() dto: RefreshDto) {
+    return this.authFacade.refresh(dto.refreshToken);
   }
 
   @ApiOperation({ summary: "Get current user by access token" })
@@ -75,23 +82,12 @@ export class AuthController {
   @ApiOkResponse({ type: MeResponseDto })
   @UseGuards(JwtAuthGuard)
   @Get("me")
-  async me(@Req() req: Request) {
-    const userId = (req.user as any)?.userId as string | undefined;
-    if (!userId) {
-      return { user: null };
-    }
-
-    const user = await this.usersService.findById(userId);
-    if (!user) {
-      return { user: null };
-    }
-
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: (user as { role?: string }).role ?? "USER",
-    };
+  async me(
+    @Req() req: Request,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const userId = (req.user as { userId?: string } | undefined)?.userId;
+    return this.authFacade.me(userId, authorization);
   }
 
   @ApiOperation({ summary: "Logout user" })
@@ -100,12 +96,11 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post("logout")
-  async logout() {
-    // For JWT tokens, logout is typically handled client-side by removing tokens
-    // The server could implement token blacklisting if needed
-    return {
-      message: "Successfully logged out",
-    };
+  async logout(
+    @Headers("authorization") authorization?: string,
+    @Body() body?: { refreshToken?: string },
+  ) {
+    return this.authFacade.logout(authorization, body?.refreshToken);
   }
 }
 

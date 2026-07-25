@@ -9,6 +9,7 @@ import { ReferenceDataModule } from "./modules/reference-data/reference-data.mod
 import { TaxonomyModule } from "./modules/taxonomy/taxonomy.module";
 import { ContentModule } from "./modules/content/content.module";
 import { ContentFacetsModule } from "./modules/content-facets/content-facets.module";
+import { AiModule } from "./modules/ai/ai.module";
 import { DiaryModule } from "./modules/diary/diary.module";
 import { EventsModule } from "./modules/events/events.module";
 import { MediaModule } from "./modules/media/media.module";
@@ -21,6 +22,7 @@ import { RegistryModule } from "./modules/registry/registry.module";
 import { TagsModule } from "./modules/tags/tags.module";
 import { TelegramModule } from "./modules/telegram/telegram.module";
 import { UsersModule } from "./modules/users/users.module";
+import { ProfileModule } from "./modules/profile/profile.module";
 import { PrismaModule } from "./infrastructure/prisma/prisma.module";
 import { HealthModule } from "./health/health.module";
 
@@ -48,6 +50,7 @@ import { HealthModule } from "./health/health.module";
     PrismaModule,
     HealthModule,
     UsersModule,
+    ProfileModule,
     AuthModule,
     PlantModule,
     DiaryModule,
@@ -57,6 +60,7 @@ import { HealthModule } from "./health/health.module";
     TaxonomyModule,
     ContentModule,
     ContentFacetsModule,
+    AiModule,
     TelegramModule,
     PrimitivesModule,
     RegistryModule,

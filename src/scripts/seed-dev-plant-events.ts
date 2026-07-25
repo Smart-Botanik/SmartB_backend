@@ -4,13 +4,8 @@ import { PLANT_GROWTH_ACTION_PATH_STRINGS, PLANT_HEALTH_ACTION_PATH_STRINGS } fr
 const SEED_PREFIX = "seed:rew-07";
 
 export async function seedDevPlantEvents(prisma: PrismaClient) {
-  const user = await prisma.user.findUnique({
-    where: { email: "user@growingapp.com" },
-    select: { id: true },
-  });
-  if (!user) {
-    throw new Error("seedDevPlantEvents: user@growingapp.com not found — run user seed first");
-  }
+  const { resolveGrowSeedUser } = await import("./resolve-grow-seed-user");
+  const user = await resolveGrowSeedUser(prisma, "seedDevPlantEvents");
 
   const seatedPlant = await prisma.plant.findFirst({
     where: { userId: user.id, name: "seed:rew-06:seated" },

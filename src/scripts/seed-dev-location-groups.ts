@@ -28,13 +28,8 @@ const DEV_LOCATION_GROUP_FIXTURES: DevLocationGroupFixture[] = [
 ];
 
 export async function seedDevLocationGroups(prisma: PrismaClient) {
-  const user = await prisma.user.findUnique({
-    where: { email: "user@growingapp.com" },
-    select: { id: true },
-  });
-  if (!user) {
-    throw new Error("seedDevLocationGroups: user@growingapp.com not found — run user seed first");
-  }
+  const { resolveGrowSeedUser } = await import("./resolve-grow-seed-user");
+  const user = await resolveGrowSeedUser(prisma, "seedDevLocationGroups");
 
   const locations = await prisma.location.findMany({
     where: {

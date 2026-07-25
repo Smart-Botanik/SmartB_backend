@@ -1,77 +1,31 @@
-import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+/**
+ * Legacy helper — identity now lives in auth-service (ADR-0023).
+ * Prefer: `cd services/auth && npm run db:seed`
+ */
+import { PrismaClient } from "@prisma/client";
+import { GROW_SEED_ACCOUNT_IDS } from "./src/modules/users/grow-seed-accounts";
 
 const prisma = new PrismaClient();
 
-async function createTestUsers() {
-  try {
-    // Test users with different roles
-    const testUsers = [
-      {
-        email: 'user@growingapp.com',
-        username: 'testuser',
-        password: 'user123',
-        role: 'USER',
-      },
-      {
-        email: 'moderator@growingapp.com',
-        username: 'testmoderator',
-        password: 'moderator123',
-        role: 'MODERATOR',
-      },
-      {
-        email: 'admin2@growingapp.com',
-        username: 'testadmin2',
-        password: 'admin123',
-        role: 'ADMIN',
-      },
-    ];
-
-    for (const userData of testUsers) {
-      // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email: userData.email },
-      });
-
-      if (existingUser) {
-        console.log(`✅ User ${userData.email} already exists`);
-        continue;
-      }
-
-      // Hash the password
-      const passwordHash = await bcrypt.hash(userData.password, 10);
-
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          email: userData.email,
-          username: userData.username,
-          passwordHash,
-          role: userData.role as any,
-        },
-      });
-
-      console.log(`✅ Created ${userData.role} user:`);
-      console.log(`   Email: ${user.email}`);
-      console.log(`   Username: ${user.username}`);
-      console.log(`   Password: ${userData.password}`);
-      console.log(`   Role: ${user.role}`);
-      console.log('');
-    }
-
-    console.log('🎯 Test Users Summary:');
-    console.log('👤 Regular User: user@growingapp.com / user123');
-    console.log('🛡️ Moderator: moderator@growingapp.com / moderator123');
-    console.log('👑 Admin: admin2@growingapp.com / admin123');
-    console.log('👑 Original Admin: admin@growingapp.com / admin123');
-    console.log('');
-    console.log('🌐 Test different permission levels at: http://localhost:3001/admin/login');
-    
-  } catch (error) {
-    console.error('❌ Error creating test users:', error);
-  } finally {
-    await prisma.$disconnect();
+async function main() {
+  for (const id of Object.values(GROW_SEED_ACCOUNT_IDS)) {
+    await prisma.user.upsert({
+      where: { id },
+      create: { id },
+      update: {},
+    });
   }
+  console.log("Ensured grow account stubs:", GROW_SEED_ACCOUNT_IDS);
+  console.log("Identity seed: cd services/auth && npm run db:seed");
+  console.log("👤 user@growingapp.com / user123");
+  console.log("👑 admin@growingapp.com / admin123");
 }
 
-createTestUsers();
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

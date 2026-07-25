@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import * as bcrypt from "bcrypt";
+import { GROW_SEED_ACCOUNT_IDS } from "../src/modules/users/grow-seed-accounts";
 import { seedActionPathRegistry } from "../src/scripts/seed-action-path-registry";
 import { seedRegistryFieldSpecs } from "../src/scripts/seed-registry-field-specs";
 import { seedSiteContent } from "../src/scripts/seed-site-content";
@@ -12,59 +12,22 @@ import { seedTaxonomyTags } from "../src/scripts/run-seed-taxonomy-tags";
 
 const prisma = new PrismaClient();
 
+async function ensureGrowSeedAccounts() {
+  // Identity (email/password/role) is seeded in services/auth — same ids.
+  for (const id of Object.values(GROW_SEED_ACCOUNT_IDS)) {
+    await prisma.user.upsert({
+      where: { id },
+      create: { id },
+      update: {},
+    });
+  }
+  console.log("Ensured grow account stubs:", GROW_SEED_ACCOUNT_IDS);
+}
+
 async function main() {
   console.log("Start seeding...");
 
-  // Create admin users
-  const adminPassword = await bcrypt.hash("admin123", 10);
-  const moderatorPassword = await bcrypt.hash("moderator123", 10);
-  const userPassword = await bcrypt.hash("user123", 10);
-
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@growingapp.com" },
-    update: {},
-    create: {
-      email: "admin@growingapp.com",
-      username: "admin",
-      passwordHash: adminPassword,
-      role: "ADMIN",
-    },
-  });
-
-  const admin2 = await prisma.user.upsert({
-    where: { email: "admin2@growingapp.com" },
-    update: {},
-    create: {
-      email: "admin2@growingapp.com",
-      username: "admin2",
-      passwordHash: adminPassword,
-      role: "ADMIN",
-    },
-  });
-
-  const moderator = await prisma.user.upsert({
-    where: { email: "moderator@growingapp.com" },
-    update: {},
-    create: {
-      email: "moderator@growingapp.com",
-      username: "moderator",
-      passwordHash: moderatorPassword,
-      role: "USER",
-    },
-  });
-
-  const user = await prisma.user.upsert({
-    where: { email: "user@growingapp.com" },
-    update: {},
-    create: {
-      email: "user@growingapp.com",
-      username: "user",
-      passwordHash: userPassword,
-      role: "USER",
-    },
-  });
-
-  console.log("Created users:", { admin, admin2, moderator, user });
+  await ensureGrowSeedAccounts();
 
   // Brand / Product: reference-data-service — см. services/reference-data `npm run db:seed`
 

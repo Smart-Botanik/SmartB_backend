@@ -236,13 +236,8 @@ async function syncDevSeats(
 }
 
 export async function seedDevLocations(prisma: PrismaClient) {
-  const user = await prisma.user.findUnique({
-    where: { email: "user@growingapp.com" },
-    select: { id: true },
-  });
-  if (!user) {
-    throw new Error("seedDevLocations: user@growingapp.com not found — run user seed first");
-  }
+  const { resolveGrowSeedUser } = await import("./resolve-grow-seed-user");
+  const user = await resolveGrowSeedUser(prisma, "seedDevLocations");
 
   const tagIdsByKey = await resolveEnvironmentTagIds(
     DEV_LOCATION_FIXTURES.map((f) => f.environmentVariantKey),

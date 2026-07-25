@@ -3,6 +3,34 @@
 > Локальный лог `backend_nest/`. **Не** копия platform `memory/project/history.md`.  
 > Шаблон: date · role · change · impact · reason.
 
+## 2026-07-25 — Seed id alignment seed_account_* ([Backend])
+
+**Role**: Backend  
+**Change**: `npm run seed:align-ids` remapped auth/user/grow/social to canonical ids; contracts `platform-seed-accounts.json`.  
+**Impact**: Local login `jwt.sub` matches grow FKs.  
+**Reason**: Stop cuid drift after auth/user extract.
+
+## 2026-07-25 — User-service profile + growProfile ([Backend])
+
+**Role**: Backend  
+**Change**: BFF `ProfileModule` → user-service ensure/get; `growProfile` stitch; auth register/login ensures profile + grow account.  
+**Impact**: `/auth/me` enriched with displayName; GraphQL `growProfile(userId)`.  
+**Reason**: ADR-0024.
+
+## 2026-07-25 — Grow User = account stub ([Backend])
+
+**Role**: Backend  
+**Change**: Dropped grow_db User email/username/passwordHash/role; `ensureGrowAccount(userId)`; users module id-only; seed ids shared with auth-service.  
+**Impact**: No credential shadow in grow; ownership FKs bind via jwt.sub.  
+**Reason**: ADR-0023 grow-account amendment.
+
+## 2026-07-25 — Auth cutover proxy → auth-service ([Backend])
+
+**Role**: Backend  
+**Change**: BFF `AuthFacade` + remote HTTP client; `/auth/*` + `/admin/users` → `services/auth` when `AUTH_CUTOVER`; local JwtStrategy/RolesGuard kept; grow shadow User sync on register/login.  
+**Impact**: Identity/tokens SoT outside grow BFF; clients keep same REST paths.  
+**Reason**: ADR-0023 Phase 1 extract.
+
 ## 2026-07-24 — Culture facets starting seed + LOGO assets ([Backend])
 
 **Role**: Backend  

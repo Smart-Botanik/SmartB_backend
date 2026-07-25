@@ -804,133 +804,56 @@ async function seedSiteContentInto(prisma: ContentMigrationPrisma) {
     },
   });
 
-  // ADR-0021 sample days: generalState vs culture marks can diverge.
-  const cropTags = await resolveTaxonomyTagIdsByKeys([
-    "crop.tomato",
-    "crop.cucumber",
-  ]);
-  const tomatoId = cropTags.find(t => t.key === "crop.tomato")?.id;
-  const cucumberId = cropTags.find(t => t.key === "crop.cucumber")?.id;
+  // ADR-0021 / ADR-0022: CalendarDay catalog from seed-data JSON (portable tag keys).
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const seedPath = path.resolve(
+    __dirname,
+    "../../../services/content/prisma/seed-data/calendar-days.json",
+  );
+  const seedFile = JSON.parse(fs.readFileSync(seedPath, "utf8")) as {
+    days: Array<{
+      date: string;
+      title: string | null;
+      bodyMd: string;
+      moonPhase: string | null;
+      moonZodiacSign: string | null;
+      generalState: "GOOD" | "NEUTRAL" | "BAD";
+      status?: string;
+      cultureMarks?: Array<{
+        taxonomyTagKey: string;
+        activityKind: string;
+        favorability: string;
+        note?: string;
+      }>;
+    }>;
+  };
+
+  const markKeys = [
+    ...new Set(
+      seedFile.days.flatMap(d =>
+        (d.cultureMarks ?? []).map(m => m.taxonomyTagKey),
+      ),
+    ),
+  ];
+  const cropTags =
+    markKeys.length > 0 ? await resolveTaxonomyTagIdsByKeys(markKeys) : [];
+  const tagIdByKey = new Map(cropTags.map(t => [t.key, t.id]));
 
   const utcDate = (iso: string) => {
     const [y, m, d] = iso.split("-").map(Number);
     return new Date(Date.UTC(y, m - 1, d));
   };
 
-  const sampleDays: Array<{
-    date: string;
-    title: string;
-    bodyMd: string;
-    moonPhase: string;
-    moonZodiacSign: string;
-    generalState: "GOOD" | "NEUTRAL" | "BAD";
-    marks: Array<{
-      taxonomyTagId: string;
-      activityKind: string;
-      favorability: string;
-      note?: string;
-    }>;
-  }> = [
-    {
-      date: "2026-07-21",
-      title: "Новолуние — общий спад",
-      bodyMd:
-        "День около новолуния: общий тон неблагоприятный, но по культурам картина разная.",
-      moonPhase: "new",
-      moonZodiacSign: "cancer",
-      generalState: "BAD",
-      marks: [
-        ...(tomatoId
-          ? [
-              {
-                taxonomyTagId: tomatoId,
-                activityKind: "LANDING",
-                favorability: "UNFAVORABLE",
-                note: "Не сажать томаты",
-              },
-              {
-                taxonomyTagId: tomatoId,
-                activityKind: "WATERING",
-                favorability: "NEUTRAL",
-                note: "Полив без акцента",
-              },
-            ]
-          : []),
-        ...(cucumberId
-          ? [
-              {
-                taxonomyTagId: cucumberId,
-                activityKind: "CARE",
-                favorability: "NEUTRAL",
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      date: "2026-07-23",
-      title: "Растущая — надземные культуры",
-      bodyMd: "Растущая Луна в плодородном знаке — хороший день для посадок надземных.",
-      moonPhase: "waxing",
-      moonZodiacSign: "taurus",
-      generalState: "GOOD",
-      marks: [
-        ...(tomatoId
-          ? [
-              {
-                taxonomyTagId: tomatoId,
-                activityKind: "LANDING",
-                favorability: "FAVORABLE",
-              },
-              {
-                taxonomyTagId: tomatoId,
-                activityKind: "NUTRIENTS",
-                favorability: "FAVORABLE",
-                note: "Минеральные подкормки",
-              },
-            ]
-          : []),
-        ...(cucumberId
-          ? [
-              {
-                taxonomyTagId: cucumberId,
-                activityKind: "LANDING",
-                favorability: "FAVORABLE",
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      date: "2026-08-05",
-      title: "Полнолуние",
-      bodyMd: "Полнолуние: без посадок; прополка и обработки ок.",
-      moonPhase: "full",
-      moonZodiacSign: "aquarius",
-      generalState: "NEUTRAL",
-      marks: [
-        ...(tomatoId
-          ? [
-              {
-                taxonomyTagId: tomatoId,
-                activityKind: "LANDING",
-                favorability: "UNFAVORABLE",
-              },
-              {
-                taxonomyTagId: tomatoId,
-                activityKind: "CARE",
-                favorability: "FAVORABLE",
-                note: "Прополка / вредители",
-              },
-            ]
-          : []),
-      ],
-    },
-  ];
-
   let calendarDays = 0;
-  for (const sample of sampleDays) {
+  for (const sample of seedFile.days) {
     const date = utcDate(sample.date);
+    const status =
+      sample.status === "DRAFT"
+        ? ContentStatus.DRAFT
+        : sample.status === "ARCHIVED"
+          ? ContentStatus.ARCHIVED
+          : ContentStatus.PUBLISHED;
     const day = await prisma.calendarDay.upsert({
       where: { date },
       update: {
@@ -939,8 +862,8 @@ async function seedSiteContentInto(prisma: ContentMigrationPrisma) {
         moonPhase: sample.moonPhase,
         moonZodiacSign: sample.moonZodiacSign,
         generalState: sample.generalState,
-        status: ContentStatus.PUBLISHED,
-        publishedAt: now,
+        status,
+        publishedAt: status === ContentStatus.PUBLISHED ? now : null,
       },
       create: {
         date,
@@ -949,23 +872,28 @@ async function seedSiteContentInto(prisma: ContentMigrationPrisma) {
         moonPhase: sample.moonPhase,
         moonZodiacSign: sample.moonZodiacSign,
         generalState: sample.generalState,
-        status: ContentStatus.PUBLISHED,
-        publishedAt: now,
+        status,
+        publishedAt: status === ContentStatus.PUBLISHED ? now : null,
       },
     });
     await prisma.calendarDayCultureMark.deleteMany({
       where: { calendarDayId: day.id },
     });
-    if (sample.marks.length > 0) {
-      await prisma.calendarDayCultureMark.createMany({
-        data: sample.marks.map(mark => ({
+    const marks = (sample.cultureMarks ?? [])
+      .map(mark => {
+        const taxonomyTagId = tagIdByKey.get(mark.taxonomyTagKey);
+        if (!taxonomyTagId) return null;
+        return {
           calendarDayId: day.id,
-          taxonomyTagId: mark.taxonomyTagId,
+          taxonomyTagId,
           activityKind: mark.activityKind,
           favorability: mark.favorability,
           note: mark.note ?? null,
-        })),
-      });
+        };
+      })
+      .filter((m): m is NonNullable<typeof m> => Boolean(m));
+    if (marks.length > 0) {
+      await prisma.calendarDayCultureMark.createMany({ data: marks });
     }
     calendarDays += 1;
   }

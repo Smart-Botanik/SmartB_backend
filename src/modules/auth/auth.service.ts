@@ -1,119 +1,50 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
-import * as bcrypt from "bcrypt";
 import { Role } from "@growing/contracts";
-import { UsersService } from "../users/users.service";
 import { JwtPayload } from "./types/jwt-payload.type";
 
+/**
+ * Local JWT helpers + cutover-off stubs.
+ * Identity CRUD lives in auth-service when AUTH_CUTOVER is on (default).
+ * Grow `User` is an account stub — no credentials here.
+ */
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
 
-  private async hashPassword(password: string): Promise<string> {
-    const saltRounds = 10;
-    return bcrypt.hash(password, saltRounds);
+  private cutoverRequired(): never {
+    throw new ServiceUnavailableException(
+      "Grow User is an account stub (ADR-0023). Set AUTH_CUTOVER=true and use auth-service for login/register/roles.",
+    );
   }
 
-  private async verifyPassword(
-    password: string,
-    hash: string,
-  ): Promise<boolean> {
-    return bcrypt.compare(password, hash);
-  }
-
-  async register(params: {
+  register(_params: {
     email: string;
     username: string;
     password: string;
-  }) {
-    const normalizedEmail = params.email.trim().toLowerCase();
-    const normalizedUsername = params.username.trim();
-    const passwordHash = await this.hashPassword(params.password);
-
-    const user = await this.usersService.createUser({
-      email: normalizedEmail,
-      username: normalizedUsername,
-      passwordHash,
-    });
-
-    const tokens = await this.issueTokens({
-      userId: user.id,
-      email: user.email,
-      role: (user as any).role,
-    });
-
-    return {
-      jwt: tokens.accessToken,
-      user: {
-        id: user.id,
-        createdAt: user.createdAt.toISOString(),
-        email: user.email,
-        username: user.username,
-        role: (user as { role?: Role }).role ?? Role.USER,
-      },
-    };
+  }): never {
+    return this.cutoverRequired();
   }
 
-  /** Admin-only: create account with explicit role (no auto-login tokens). */
-  async createProvisionedUser(params: {
+  createProvisionedUser(_params: {
     email: string;
     username: string;
     password: string;
     role: Role;
-  }) {
-    const normalizedEmail = params.email.trim().toLowerCase();
-    const normalizedUsername = params.username.trim();
-    const passwordHash = await this.hashPassword(params.password);
-    const user = await this.usersService.createUser({
-      email: normalizedEmail,
-      username: normalizedUsername,
-      passwordHash,
-      role: params.role,
-    });
-    return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      role: user.role,
-      createdAt: user.createdAt.toISOString(),
-      updatedAt: user.updatedAt.toISOString(),
-    };
+  }): never {
+    return this.cutoverRequired();
   }
 
-  async login(params: { identifier: string; password: string }) {
-    const normalizedIdentifier = params.identifier.trim().toLowerCase();
-    const user = await this.usersService.findByEmail(normalizedIdentifier);
-
-    if (!user) {
-      throw new UnauthorizedException("Invalid credentials");
-    }
-
-    const ok = await this.verifyPassword(params.password, user.passwordHash);
-    if (!ok) {
-      throw new UnauthorizedException("Invalid credentials");
-    }
-
-    const tokens = await this.issueTokens({
-      userId: user.id,
-      email: user.email,
-      role: (user as any).role,
-    });
-
-    return {
-      jwt: tokens.accessToken,
-      user: {
-        id: user.id,
-        createdAt: user.createdAt.toISOString(),
-        email: user.email,
-        username: user.username,
-        role: (user as { role?: Role }).role ?? Role.USER,
-      },
-    };
+  login(_params: { identifier: string; password: string }): never {
+    return this.cutoverRequired();
   }
 
   async issueTokens(params: { userId: string; email: string; role: Role }) {
@@ -132,5 +63,11 @@ export class AuthService {
     return {
       accessToken,
     };
+  }
+
+  async refresh(_refreshToken: string): Promise<never> {
+    throw new UnauthorizedException(
+      "Refresh tokens require auth-service (set AUTH_CUTOVER=true)",
+    );
   }
 }

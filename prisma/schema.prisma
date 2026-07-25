@@ -9,26 +9,18 @@ datasource db {
 
 // =============================================================================
 // Срез схемы (фиксация после выходных, 2026-04-13)
-// - Role: только USER | ADMIN (совпадает с JWT/контрактами; при расхождении с БД — отдельная миграция enum).
+// - User (grow account stub, ADR-0023 amended): только id (= auth jwt.sub).
+//   Credentials / roles / tokens — в auth-service (auth_db), не здесь.
 // - Location: владелец userId, статусы/типы Strapi-совместимые, specs (блоки lighting,
 //   enclosure, space, area), связи Plant.locationId и M2M Diary↔Location.
 // - CultivationUnit (ADR-0011): среда выращивания; Location — контейнер + parentLocationId.
 // - Подробности: memory/locations/main.md, ADR-0011.
 // =============================================================================
 
-enum Role {
-  USER
-  ADMIN
-}
-
+/// Grow account stub — ownership anchor for Plant/Diary/Location (id == auth User.id).
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  username     String   @unique
-  passwordHash String
-  role         Role     @default(USER)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id
+  createdAt DateTime @default(now())
 
   plants            Plant[]
   plantGroups       PlantGroup[]

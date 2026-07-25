@@ -324,10 +324,7 @@ export class ContentRemoteService extends ContentService {
       QUERY_CALENDAR_DAY,
       { date },
     );
-    if (!data.calendarDay) {
-      throw new NotFoundException("CalendarDay not found");
-    }
-    return data.calendarDay;
+    return data.calendarDay ?? null;
   }
 
   async upsertCalendarDay(params: {

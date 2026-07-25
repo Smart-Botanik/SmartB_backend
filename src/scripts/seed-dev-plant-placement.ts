@@ -79,13 +79,8 @@ async function upsertPlacementPlant(
 }
 
 export async function seedDevPlantPlacement(prisma: PrismaClient) {
-  const user = await prisma.user.findUnique({
-    where: { email: "user@growingapp.com" },
-    select: { id: true },
-  });
-  if (!user) {
-    throw new Error("seedDevPlantPlacement: user@growingapp.com not found — run user seed first");
-  }
+  const { resolveGrowSeedUser } = await import("./resolve-grow-seed-user");
+  const user = await resolveGrowSeedUser(prisma, "seedDevPlantPlacement");
 
   const growbox = await prisma.location.findFirst({
     where: { userId: user.id, name: GROWBOX_NAME },

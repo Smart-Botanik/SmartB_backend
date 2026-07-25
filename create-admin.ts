@@ -1,53 +1,31 @@
-import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+/**
+ * Legacy helper — identity now lives in auth-service (ADR-0023).
+ * Prefer: `cd services/auth && npm run db:seed`
+ * Grow account stubs: `npm run db:seed` in backend_nest.
+ */
+import { PrismaClient } from "@prisma/client";
+import { GROW_SEED_ACCOUNT_IDS } from "./src/modules/users/grow-seed-accounts";
 
 const prisma = new PrismaClient();
 
-async function createAdminUser() {
-  try {
-    const email = 'admin@growingapp.com';
-    const username = 'admin';
-    const password = 'admin123';
-
-    // Check if admin user already exists
-    const existingAdmin = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingAdmin) {
-      console.log('✅ Admin user already exists:', email);
-      console.log('📝 Login credentials:');
-      console.log('   Email:', email);
-      console.log('   Password:', password);
-      return;
-    }
-
-    // Hash the password
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    // Create admin user
-    const adminUser = await prisma.user.create({
-      data: {
-        email,
-        username,
-        passwordHash,
-        role: 'ADMIN',
-      },
-    });
-
-    console.log('✅ Admin user created successfully!');
-    console.log('📝 Login credentials:');
-    console.log('   Email:', adminUser.email);
-    console.log('   Username:', adminUser.username);
-    console.log('   Password:', password);
-    console.log('   Role:', adminUser.role);
-    console.log('');
-    console.log('🌐 You can now login at: http://localhost:3001/admin/login');
-  } catch (error) {
-    console.error('❌ Error creating admin user:', error);
-  } finally {
-    await prisma.$disconnect();
-  }
+async function main() {
+  await prisma.user.upsert({
+    where: { id: GROW_SEED_ACCOUNT_IDS.admin },
+    create: { id: GROW_SEED_ACCOUNT_IDS.admin },
+    update: {},
+  });
+  console.log(
+    "Ensured grow account stub:",
+    GROW_SEED_ACCOUNT_IDS.admin,
+    "(credentials: services/auth npm run db:seed → admin@growingapp.com / admin123)",
+  );
 }
 
-createAdminUser();
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

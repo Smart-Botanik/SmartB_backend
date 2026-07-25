@@ -28,13 +28,8 @@ const METRIC_FIXTURES: MetricFixture[] = [
 ];
 
 export async function seedDevMetrics(prisma: PrismaClient) {
-  const user = await prisma.user.findUnique({
-    where: { email: "user@growingapp.com" },
-    select: { id: true },
-  });
-  if (!user) {
-    throw new Error("seedDevMetrics: user@growingapp.com not found — run user seed first");
-  }
+  const { resolveGrowSeedUser } = await import("./resolve-grow-seed-user");
+  const user = await resolveGrowSeedUser(prisma, "seedDevMetrics");
 
   const locations = await prisma.location.findMany({
     where: { userId: user.id, name: { startsWith: "DEV —" } },
